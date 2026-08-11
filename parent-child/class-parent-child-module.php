@@ -282,6 +282,31 @@ final class Prep_Expert_Parent_Child_Module {
 		prep_expert_parent_child_write_log( $message, $context );
 	}
 
+	/**
+	 * Return the first existing column from a list of candidates.
+	 *
+	 * @param string $table      Database table name.
+	 * @param array  $candidates Candidate column names.
+	 * @return string
+	 */
+	private function first_existing_column( $table, $candidates ) {
+		global $wpdb;
+
+		$table_escaped = esc_sql( $table );
+		foreach ( $candidates as $candidate ) {
+			$column = sanitize_key( $candidate );
+			if ( '' === $column ) {
+				continue;
+			}
+			$exists = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$table_escaped}` LIKE %s", $column ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			if ( ! empty( $exists ) ) {
+				return $column;
+			}
+		}
+
+		return '';
+	}
+
 	private function get_child_progress( $children ) {
 		global $wpdb;
 		$user_ids = array_map( 'absint', wp_list_pluck( $children, 'child_user_id' ) );
@@ -289,19 +314,54 @@ final class Prep_Expert_Parent_Child_Module {
 			return array();
 		}
 		$table = function_exists( 'stm_lms_user_courses_name' ) ? stm_lms_user_courses_name( $wpdb ) : $wpdb->prefix . 'stm_lms_user_courses';
+		$table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+		if ( empty( $table_exists ) ) {
+			$this->log( 'get_child_progress table not found', array( 'table' => $table ) );
+			return array();
+		}
+
+		$user_column = $this->first_existing_column( $table, array( 'user_id', 'student_id' ) );
+		$course_column = $this->first_existing_column( $table, array( 'course_id', 'post_id', 'item_id' ) );
+		$progress_column = $this->first_existing_column( $table, array( 'progress', 'progress_percent' ) );
+		$time_column = $this->first_existing_column( $table, array( 'updated_at', 'start_time', 'enrolled_at' ) );
+
+		if ( '' === $user_column || '' === $course_column || '' === $progress_column ) {
+			$this->log(
+				'get_child_progress missing required columns',
+				array(
+					'table' => $table,
+					'user_column' => $user_column,
+					'course_column' => $course_column,
+					'progress_column' => $progress_column,
+					'time_column' => $time_column,
+				)
+			);
+			return array();
+		}
+
+		if ( '' === $time_column ) {
+			$time_column = $this->first_existing_column( $table, array( 'start_time', 'created_at' ) );
+		}
+
 		$marks = implode( ',', array_fill( 0, count( $user_ids ), '%d' ) );
-		// Column is named `progress` in stm_lms_user_courses (not `progress_percent`).
-		// $user_ids must be spread with ... so wpdb->prepare() receives individual arguments.
-		$rows  = $wpdb->get_results( $wpdb->prepare( "SELECT user_id, course_id, progress, start_time FROM {$table} WHERE user_id IN ({$marks}) ORDER BY start_time ASC", ...$user_ids ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$order_column = '' !== $time_column ? $time_column : $course_column;
+		$time_select  = '' !== $time_column ? $time_column : '0';
+		$query        = "SELECT {$user_column} AS user_id, {$course_column} AS course_id, {$progress_column} AS progress, {$time_select} AS activity_time FROM {$table} WHERE {$user_column} IN ({$marks}) ORDER BY {$order_column} ASC";
+		$rows         = $wpdb->get_results( $wpdb->prepare( $query, ...$user_ids ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$this->log( 'get_child_progress query completed', array( 'table' => $table, 'rows' => is_array( $rows ) ? count( $rows ) : 0, 'user_column' => $user_column, 'course_column' => $course_column, 'progress_column' => $progress_column, 'time_column' => $time_column ) );
 		$threshold = absint( class_exists( 'STM_LMS_Options' ) ? STM_LMS_Options::get_option( 'certificate_threshold', 70 ) : 70 );
 		$report = array();
 		foreach ( $rows as $row ) {
 			$user_id = absint( $row['user_id'] );
 			$course_id = absint( $row['course_id'] );
-			$progress = min( 100, max( 0, absint( $row['progress'] ) ) );
+			$raw_progress = is_numeric( $row['progress'] ) ? (float) $row['progress'] : 0;
+			if ( $raw_progress > 0 && $raw_progress <= 1 ) {
+				$raw_progress *= 100;
+			}
+			$progress = min( 100, max( 0, (int) round( $raw_progress ) ) );
 			$times = get_user_meta( $user_id, 'last_progress_time', true );
 			$times = is_array( $times ) ? $times : array();
-			$timestamp = absint( $times[ $course_id ] ?? $row['start_time'] );
+			$timestamp = absint( $times[ $course_id ] ?? $row['activity_time'] );
 			$status = $progress >= $threshold ? __( 'Passed', 'prep-expert-exam-papers' ) : ( $progress > 0 ? __( 'In progress', 'prep-expert-exam-papers' ) : __( 'Not started', 'prep-expert-exam-papers' ) );
 			$class  = $progress >= $threshold ? 'passed' : ( $progress > 0 ? 'progress' : 'not-started' );
 			$report[ $user_id ][] = array( 'title' => get_the_title( $course_id ), 'progress' => $progress, 'activity' => $timestamp ? wp_date( get_option( 'date_format' ), $timestamp ) : __( 'Not started', 'prep-expert-exam-papers' ), 'status' => $status, 'status_class' => $class );
