@@ -1,0 +1,602 @@
+.pex-exam-papers {
+	--pex-bg: #ffffff;
+	--pex-surface: #f7f8fc;
+	--pex-border: #d8deea;
+	--pex-text: #132238;
+	--pex-muted: #5f6b7c;
+	--pex-accent: #1f5eff;
+	--pex-accent-dark: #1848c9;
+	--pex-success: #117a4b;
+	--pex-warning: #b55a18;
+	--pex-danger: #a12828;
+	color: var(--pex-text);
+	font-size: 16px;
+	line-height: 1.55;
+}
+
+.pex-exam-papers__section {
+	margin: 0 0 2rem;
+}
+
+.pex-exam-papers__title {
+	margin: 0 0 0.9rem;
+	font-size: 1.35rem;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+}
+
+.pex-exam-papers__product {
+	display: grid;
+	grid-template-columns: 420px minmax(0, 1fr);
+	gap: 56px;
+	margin: 0 0 2rem;
+	padding: 24px;
+	background: #fff;
+	border: 1px solid var(--pex-border);
+	border-radius: 20px;
+	box-shadow: 0 10px 28px rgba(19, 34, 56, 0.06);
+}
+
+.pex-exam-papers__gallery {
+	display: grid;
+	grid-template-columns: 84px minmax(0, 1fr);
+	gap: 16px;
+	align-items: start;
+}
+
+.pex-exam-papers__thumbs {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	min-width: 0;
+	max-height: 420px;
+	overflow-y: auto;
+	padding-right: 4px;
+}
+
+.pex-exam-papers__thumb {
+	appearance: none;
+	border: 1px solid #eee;
+	padding: 0;
+	width: 84px;
+	height: 84px;
+	border-radius: 10px;
+	overflow: hidden;
+	background: #efe6fb;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	position: relative;
+	cursor: pointer;
+	flex: none;
+}
+
+.pex-exam-papers__thumb img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+.pex-exam-papers__thumb--active-thumb {
+	border-color: var(--pex-accent);
+	box-shadow: 0 0 0 2px rgba(31, 94, 255, 0.18);
+}
+
+.pex-exam-papers__main-media {
+	min-width: 0;
+	min-height: 420px;
+	border-radius: 16px;
+	background: linear-gradient(160deg, #8b5cf6, #7c3aed 60%, #6d28d9);
+	overflow: hidden;
+	position: relative;
+}
+
+.pex-exam-papers__main-media img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	min-height: 420px;
+	object-fit: cover;
+}
+
+.pex-exam-papers__thumb--placeholder {
+	background: linear-gradient(160deg, #8b5cf6, #7c3aed 60%, #6d28d9);
+	/* fix: this is nested inside .pex-exam-papers__thumb--active, but only had
+	   the base 84x84 .pex-exam-papers__thumb sizing — it never filled the
+	   active slot. Force it to match its parent instead. */
+	width: 100%;
+	height: 100%;
+	min-height: 420px;
+	border-radius: 16px;
+}
+
+.pex-exam-papers__thumb--placeholder::after {
+	content: "";
+	position: absolute;
+	/* fix: absolutely positioned elements don't reliably get centered by a
+	   flex parent's align-items/justify-content across browsers. Center it
+	   explicitly instead. */
+	top: 50%;
+	left: 50%;
+	transform: translate(-46%, -50%);
+	width: 0;
+	height: 0;
+	border-left: 10px solid #fff;
+	border-top: 7px solid transparent;
+	border-bottom: 7px solid transparent;
+}
+
+.pex-exam-papers__product-content {
+	min-width: 0;
+	overflow: hidden;
+}
+
+.pex-exam-papers__breadcrumb {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 14px;
+	color: #6b7280;
+	margin-bottom: 18px;
+	flex-wrap: wrap;
+}
+
+.pex-exam-papers__breadcrumb a {
+	color: #6b7280;
+	text-decoration: none;
+}
+
+.pex-exam-papers__breadcrumb a:hover {
+	text-decoration: underline;
+}
+
+.pex-exam-papers__breadcrumb-current {
+	color: #111;
+	font-weight: 500;
+}
+
+.pex-exam-papers__product-title {
+	font-size: 44px;
+	font-weight: 800;
+	line-height: 1.1;
+	margin: 0 0 14px;
+	letter-spacing: -0.02em;
+	color: #111;
+}
+
+.pex-exam-papers__students {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: #4b5563;
+	font-size: 15px;
+	margin-bottom: 22px;
+}
+
+.pex-exam-papers__students strong {
+	color: #111;
+}
+
+.pex-exam-papers__students-icon {
+	width: 20px;
+	height: 20px;
+	flex: none;
+}
+
+.pex-exam-papers__product-description {
+	font-size: 16.5px;
+	line-height: 1.55;
+	color: #1f2937;
+	margin-bottom: 30px;
+}
+
+.pex-exam-papers__product-description ul {
+	margin: 0;
+	padding-left: 18px;
+}
+
+.pex-exam-papers__buy-row {
+	display: flex;
+	align-items: center;
+	gap: 18px;
+	flex-wrap: wrap;
+	min-width: 0;
+}
+
+.pex-exam-papers__price {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.35rem;
+	flex-wrap: wrap;
+	font-size: 34px;
+	font-weight: 800;
+	color: #111;
+	line-height: 1;
+}
+
+.pex-exam-papers__price-amount {
+	font-size: 1em;
+	font-weight: 800;
+}
+
+.pex-exam-papers__price-period {
+	font-size: 0.52em;
+	font-weight: 500;
+	color: #6b7280;
+}
+
+.pex-exam-papers__price small {
+	font-size: 0.52em;
+	font-weight: 500;
+	color: #6b7280;
+}
+
+.pex-exam-papers__product-cta {
+	margin-left: auto;
+	min-width: 0;
+}
+
+.pex-exam-papers__product-cta .pex-exam-papers__btn {
+	padding: 16px 26px;
+	border-radius: 10px;
+	font-size: 16px;
+	min-width: 180px;
+	justify-content: center;
+	max-width: 100%;
+	white-space: normal;
+	text-align: center;
+}
+
+.pex-exam-papers__product-cta .pex-exam-papers__btn svg {
+	width: 20px;
+	height: 20px;
+	flex: none;
+}
+
+.pex-exam-papers__table-wrap {
+	background: var(--pex-bg);
+	border: 1px solid var(--pex-border);
+	border-radius: 18px;
+	box-shadow: 0 10px 28px rgba(19, 34, 56, 0.06);
+	overflow: hidden;
+}
+
+.pex-exam-papers__table {
+	display: block;
+	width: 100%;
+}
+
+.pex-exam-papers__table-head,
+.pex-exam-papers__row {
+	display: grid;
+	grid-template-columns: 72px minmax(0, 2.2fr) minmax(160px, 1fr) minmax(160px, 1fr) minmax(170px, 1fr);
+	gap: 0;
+}
+
+.pex-exam-papers__table-head {
+	background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+	border-bottom: 1px solid var(--pex-border);
+}
+
+.pex-exam-papers__head-cell,
+.pex-exam-papers__cell {
+	padding: 1rem;
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.pex-exam-papers__head-cell {
+	font-size: 0.88rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	font-weight: 800;
+	color: var(--pex-muted);
+}
+
+.pex-exam-papers__row {
+	border-bottom: 1px solid var(--pex-border);
+	background: #fff;
+}
+
+.pex-exam-papers__row:nth-child(even) {
+	background: var(--pex-surface);
+}
+
+.pex-exam-papers__row:last-child {
+	border-bottom: 0;
+}
+
+.pex-exam-papers__cell {
+	min-height: 100%;
+}
+
+.pex-exam-papers__index {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.35rem;
+	height: 2.35rem;
+	border-radius: 999px;
+	background: rgba(31, 94, 255, 0.1);
+	font-weight: 800;
+	color: var(--pex-accent-dark);
+	flex: 0 0 auto;
+}
+
+.pex-exam-papers__paper-title {
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	font-weight: 700;
+	font-size: 1.02rem;
+	line-height: 1.55;
+	color: var(--pex-text);
+}
+
+.pex-exam-papers__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.65rem;
+}
+
+.pex-exam-papers__btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.72rem 1rem;
+	border-radius: 999px;
+	font-size: 0.92rem;
+	font-weight: 700;
+	text-decoration: none;
+	border: 1px solid transparent;
+	transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease, color 0.18s ease;
+	white-space: nowrap;
+}
+
+.pex-exam-papers__btn:hover,
+.pex-exam-papers__btn:focus {
+	transform: translateY(-1px);
+	box-shadow: 0 8px 18px rgba(31, 94, 255, 0.14);
+	text-decoration: none;
+}
+
+.pex-exam-papers__btn:focus {
+	outline: 2px solid rgba(31, 94, 255, 0.35);
+	outline-offset: 2px;
+}
+
+.pex-exam-papers__btn--free,
+.pex-exam-papers__btn--unlocked {
+	background: linear-gradient(135deg, var(--pex-accent) 0%, #4e78ff 100%);
+	color: #fff;
+	border-color: rgba(31, 94, 255, 0.18);
+}
+
+.pex-exam-papers__btn--free:hover,
+.pex-exam-papers__btn--unlocked:hover,
+.pex-exam-papers__btn--free:focus,
+.pex-exam-papers__btn--unlocked:focus {
+	color: #fff;
+	background: linear-gradient(135deg, var(--pex-accent-dark) 0%, #355bd0 100%);
+}
+
+.pex-exam-papers__btn--locked {
+	background: linear-gradient(135deg, #fff7ef 0%, #fff1e2 100%);
+	color: var(--pex-warning);
+	border-color: #f0c7a5;
+}
+
+.pex-exam-papers__btn--locked:hover,
+.pex-exam-papers__btn--locked:focus {
+	color: var(--pex-warning);
+	background: linear-gradient(135deg, #fff1e2 0%, #ffe4c7 100%);
+}
+
+.pex-exam-papers__btn--disabled {
+	cursor: not-allowed;
+	opacity: 0.72;
+}
+
+.pex-exam-papers__lock-icon {
+	width: 16px;
+	height: 16px;
+	flex: 0 0 16px;
+}
+
+.pex-exam-papers__empty {
+	padding: 1rem 1.1rem;
+	background: var(--pex-surface);
+	border: 1px dashed var(--pex-border);
+	border-radius: 14px;
+	color: var(--pex-muted);
+}
+
+@media (max-width: 780px) {
+	.pex-exam-papers__product {
+		grid-template-columns: 1fr;
+		gap: 32px;
+		padding: 18px;
+	}
+
+	.pex-exam-papers__gallery {
+		grid-template-columns: 1fr;
+	}
+
+	.pex-exam-papers__thumbs {
+		order: 2;
+		flex-direction: row;
+		overflow-x: auto;
+		overflow-y: hidden;
+		max-height: none;
+		padding-bottom: 4px;
+		padding-right: 0;
+	}
+
+	.pex-exam-papers__thumb {
+		width: 64px;
+		height: 64px;
+		flex: none;
+	}
+
+	.pex-exam-papers__main-media,
+	.pex-exam-papers__main-media img,
+	.pex-exam-papers__thumb--placeholder {
+		min-height: 320px;
+	}
+
+	.pex-exam-papers__main-media {
+		order: 1;
+	}
+
+	.pex-exam-papers__product-title {
+		font-size: 26px;
+	}
+
+	.pex-exam-papers__buy-row {
+		align-items: flex-start;
+	}
+
+	.pex-exam-papers__product-cta {
+		margin-left: 0;
+		width: 100%;
+	}
+
+	.pex-exam-papers__product-cta .pex-exam-papers__btn {
+		width: 100%;
+		min-width: 0;
+	}
+
+	.pex-exam-papers__price {
+		font-size: 28px;
+	}
+
+	.pex-exam-papers__table-head {
+		display: none;
+	}
+
+	.pex-exam-papers__row {
+		grid-template-columns: 1fr;
+		padding: 0.25rem 0;
+		margin-bottom: 1rem;
+		border: 1px solid var(--pex-border);
+		border-radius: 18px;
+		overflow: hidden;
+		/* fix: nth-child(even) background on the row was peeking through the
+		   card's own padding above/below the white cells. Force white here
+		   regardless of row index. */
+		background: #fff;
+	}
+
+	.pex-exam-papers__cell {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		gap: 1rem;
+		padding: 0.95rem 1rem;
+		border-bottom: 1px solid var(--pex-border);
+		background: #fff;
+	}
+
+	.pex-exam-papers__cell:last-child {
+		border-bottom: 0;
+	}
+
+	.pex-exam-papers__cell::before {
+		content: attr(data-label);
+		flex: 0 0 40%;
+		max-width: 40%;
+		font-size: 0.76rem;
+		font-weight: 800;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--pex-muted);
+		padding-top: 0.2rem;
+	}
+
+	.pex-exam-papers__cell--index {
+		align-items: center;
+	}
+
+	.pex-exam-papers__cell--index .pex-exam-papers__index {
+		width: 2.1rem;
+		height: 2.1rem;
+	}
+
+	.pex-exam-papers__cell--title .pex-exam-papers__paper-title {
+		-webkit-line-clamp: 3;
+	}
+
+	.pex-exam-papers__actions {
+		width: 100%;
+	}
+
+	.pex-exam-papers__btn {
+		width: 100%;
+		justify-content: center;
+		white-space: normal;
+	}
+}
+
+@media (min-width: 781px) and (max-width: 1024px) {
+	.pex-exam-papers__product {
+		grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+		gap: 32px;
+	}
+
+	.pex-exam-papers__gallery {
+		grid-template-columns: 1fr;
+	}
+
+	.pex-exam-papers__thumbs {
+		order: 2;
+		flex-direction: row;
+		overflow-x: auto;
+		overflow-y: hidden;
+		max-height: none;
+		padding-bottom: 4px;
+		padding-right: 0;
+	}
+
+	.pex-exam-papers__thumb {
+		width: 72px;
+		height: 72px;
+		flex: none;
+	}
+
+	.pex-exam-papers__main-media,
+	.pex-exam-papers__main-media img,
+	.pex-exam-papers__thumb--placeholder {
+		min-height: 260px;
+	}
+
+	.pex-exam-papers__product-title {
+		font-size: 32px;
+	}
+
+	.pex-exam-papers__product-description {
+		font-size: 15px;
+	}
+
+	.pex-exam-papers__price {
+		font-size: 28px;
+	}
+
+	.pex-exam-papers__product-cta .pex-exam-papers__btn {
+		min-width: 0;
+		padding: 14px 20px;
+		font-size: 15px;
+	}
+
+	.pex-exam-papers__table-head,
+	.pex-exam-papers__row {
+		grid-template-columns: 60px minmax(0, 2fr) minmax(150px, 1fr) minmax(150px, 1fr) minmax(160px, 1fr);
+	}
+
+	.pex-exam-papers__head-cell,
+	.pex-exam-papers__cell {
+		padding: 0.9rem 0.85rem;
+	}
+}
