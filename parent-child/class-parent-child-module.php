@@ -31,6 +31,8 @@ final class Prep_Expert_Parent_Child_Module {
 		add_action( 'admin_post_prep_remove_child', array( $this, 'remove_child' ) );
 		add_action( 'admin_post_nopriv_prep_remove_child', array( $this, 'remove_child' ) );
 		add_filter( 'stm_lms_menu_items', array( $this, 'add_dashboard_menu_item' ) );
+		add_filter( 'stm_lms_sorted_student_menu', array( $this, 'add_dashboard_menu_item' ) );
+		add_filter( 'stm_lms_sorted_menu', array( $this, 'add_dashboard_menu_item' ) );
 		add_action( 'stm_lms_template_account_main', array( $this, 'render_dashboard_page' ) );
 		add_action( 'stm_lms_template_main', array( $this, 'render_dashboard_page' ) );
 		add_filter( 'the_content', array( $this, 'render_root_route_content' ), 20 );
@@ -56,13 +58,29 @@ final class Prep_Expert_Parent_Child_Module {
 	}
 
 	public function add_dashboard_menu_item( $menus ) {
-		if ( ! $this->can_manage_children() ) {
+		if ( ! is_array( $menus ) || ! $this->can_manage_children() || $this->has_dashboard_menu_item( $menus ) ) {
 			return $menus;
 		}
 		$current = class_exists( 'STM_LMS_User_Menu' ) ? STM_LMS_User_Menu::get_current_account_slug() : '';
 		$menu_url = function_exists( 'ms_plugin_user_account_url' ) ? ms_plugin_user_account_url( 'prep-parent-children' ) : home_url( '/prep-parent-children/' );
 		$menus[] = array( 'order' => 174, 'id' => 'prep-parent-children', 'slug' => 'prep-parent-children', 'lms_template' => 'account/main', 'menu_title' => esc_html__( 'My Children', 'prep-expert-exam-papers' ), 'menu_icon' => 'stmlms-menu-students', 'menu_url' => $menu_url, 'is_active' => 'prep-parent-children' === $current || $this->is_parent_children_request(), 'menu_place' => 'learning', 'section' => 'account' );
 		return $menus;
+	}
+
+	/**
+	 * Check whether MasterStudy has already received this menu item.
+	 *
+	 * @param array $menus MasterStudy account menu items.
+	 * @return bool
+	 */
+	private function has_dashboard_menu_item( $menus ) {
+		foreach ( $menus as $menu ) {
+			if ( is_array( $menu ) && ( 'prep-parent-children' === ( $menu['id'] ?? '' ) || 'prep-parent-children' === ( $menu['slug'] ?? '' ) ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/** Render the root-level route when the account page is configured at /. */
@@ -197,15 +215,16 @@ final class Prep_Expert_Parent_Child_Module {
 		$this->shortcode_rendered = true;
 		$children = Prep_Expert_Parent_Child_Database::active_children( get_current_user_id() );
 		$progress = $this->get_child_progress( $children );
+		$account_url = function_exists( 'ms_plugin_user_account_url' ) ? ms_plugin_user_account_url() : home_url( '/user-account/' );
 		ob_start(); ?>
-		<div class="prep-parent-children"><h2><?php echo esc_html__( 'My Children', 'prep-expert-exam-papers' ); ?></h2>
+		<div class="prep-parent-children"><a class="prep-parent-children__back" href="<?php echo esc_url( $account_url ); ?>">&larr; <?php echo esc_html__( 'Back to Account', 'prep-expert-exam-papers' ); ?></a><h2><?php echo esc_html__( 'My Children', 'prep-expert-exam-papers' ); ?></h2>
 		<?php if ( isset( $_GET['prep_child_notice'] ) ) : $notice = sanitize_key( wp_unslash( $_GET['prep_child_notice'] ) ); ?><p class="prep-parent-children__notice prep-parent-children__notice--<?php echo esc_attr( $this->notice_type( $notice ) ); ?>"><?php echo esc_html( $this->notice_message( $notice ) ); ?></p><?php endif; ?>
 		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"><input type="hidden" name="action" value="prep_add_child"><input type="hidden" name="prep_parent_child_form" value="1"><?php wp_nonce_field( 'prep_add_child' ); ?><label for="prep-child-email"><?php echo esc_html__( 'Child email address', 'prep-expert-exam-papers' ); ?></label><input id="prep-child-email" type="email" name="child_email" required><button type="submit"><?php echo esc_html__( 'Add Child', 'prep-expert-exam-papers' ); ?></button></form>
 
 		<?php if ( empty( $children ) ) : ?><p><?php echo esc_html__( 'No children have been added yet.', 'prep-expert-exam-papers' ); ?></p><?php else : ?><ul><?php foreach ( $children as $child ) : ?><li><span><?php echo esc_html( $child['display_name'] . ' — ' . $child['user_email'] ); ?></span><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"><input type="hidden" name="action" value="prep_remove_child"><input type="hidden" name="prep_parent_child_form" value="1"><input type="hidden" name="relation_id" value="<?php echo esc_attr( $child['id'] ); ?>"><?php wp_nonce_field( 'prep_remove_child' ); ?><button type="submit"><?php echo esc_html__( 'Remove', 'prep-expert-exam-papers' ); ?></button></form></li><?php endforeach; ?></ul>
 			<h3><?php echo esc_html__( 'Child Course Progress', 'prep-expert-exam-papers' ); ?></h3><?php foreach ( $children as $child ) : ?><details class="prep-parent-children__report"><summary><?php echo esc_html( $child['display_name'] ); ?><span><?php echo esc_html( $child['user_email'] ); ?></span></summary><?php if ( empty( $progress[ $child['child_user_id'] ] ) ) : ?><p><?php echo esc_html__( 'No MasterStudy course activity is available for this child.', 'prep-expert-exam-papers' ); ?></p><?php else : ?><div class="prep-parent-children__table-wrap"><table><thead><tr><th><?php echo esc_html__( 'Course', 'prep-expert-exam-papers' ); ?></th><th><?php echo esc_html__( 'Progress', 'prep-expert-exam-papers' ); ?></th><th><?php echo esc_html__( 'Last activity', 'prep-expert-exam-papers' ); ?></th><th><?php echo esc_html__( 'Status', 'prep-expert-exam-papers' ); ?></th></tr></thead><tbody><?php foreach ( $progress[ $child['child_user_id'] ] as $course ) : ?><tr><td><?php echo esc_html( $course['title'] ); ?></td><td><div class="prep-parent-children__bar"><span style="width:<?php echo esc_attr( $course['progress'] ); ?>%"></span></div><?php echo esc_html( $course['progress'] . '%' ); ?></td><td><?php echo esc_html( $course['activity'] ); ?></td><td><span class="prep-parent-children__status prep-parent-children__status--<?php echo esc_attr( $course['status_class'] ); ?>"><?php echo esc_html( $course['status'] ); ?></span></td></tr><?php endforeach; ?></tbody></table></div><?php endif; ?></details><?php endforeach; ?>
 		<?php endif; ?></div>
-		<style>.prep-parent-children{max-width:1000px;padding:24px;background:#fff;border:1px solid #e5e7eb;border-radius:12px}.prep-parent-children form{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:16px 0}.prep-parent-children label{width:100%;font-weight:600}.prep-parent-children input[type=email]{flex:1;min-width:220px;padding:10px;border:1px solid #cbd5e1;border-radius:6px}.prep-parent-children button{padding:10px 14px;border:0;border-radius:6px;background:#4338ca;color:#fff;cursor:pointer}.prep-parent-children ul{padding:0;list-style:none}.prep-parent-children li{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid #e5e7eb}.prep-parent-children li form{margin:0}.prep-parent-children li button{background:#b91c1c}.prep-parent-children__notice{padding:10px;background:#f1f5f9}.prep-parent-children__notice--error{background:#fef2f2;color:#991b1b}.prep-parent-children__notice--success{background:#f0fdf4;color:#166534}.prep-parent-children__report{margin-top:14px;border:1px solid #e5e7eb;border-radius:8px;padding:12px}.prep-parent-children__report summary{cursor:pointer;font-weight:700}.prep-parent-children__report summary span{float:right;color:#64748b;font-weight:400}.prep-parent-children__table-wrap{overflow:auto;margin-top:12px}.prep-parent-children table{width:100%;border-collapse:collapse;min-width:650px}.prep-parent-children th,.prep-parent-children td{text-align:left;padding:10px;border-top:1px solid #e5e7eb;font-size:13px}.prep-parent-children th{font-size:11px;text-transform:uppercase;color:#64748b}.prep-parent-children__bar{display:inline-block;width:110px;height:7px;margin-right:6px;background:#e5e7eb;border-radius:9px;overflow:hidden;vertical-align:middle}.prep-parent-children__bar span{display:block;height:100%;background:#4f46e5}.prep-parent-children__status{padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700}.prep-parent-children__status--passed{background:#dcfce7;color:#166534}.prep-parent-children__status--progress{background:#fef3c7;color:#92400e}.prep-parent-children__status--not-started{background:#f1f5f9;color:#475569}</style></div>
+		<style>.prep-parent-children{max-width:1000px;padding:24px;background:#fff;border:1px solid #e5e7eb;border-radius:12px}.prep-parent-children__back{display:inline-flex;align-items:center;min-height:38px;margin-bottom:16px;padding:0 12px;border:1px solid #cbd5e1;border-radius:6px;color:#3730a3;font-size:14px;font-weight:600;line-height:1;text-decoration:none;transition:background-color .15s ease,border-color .15s ease,color .15s ease}.prep-parent-children__back:hover,.prep-parent-children__back:focus{background:#eef2ff;border-color:#818cf8;color:#312e81}.prep-parent-children__back:focus{outline:2px solid #818cf8;outline-offset:2px}.prep-parent-children form{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:16px 0}.prep-parent-children label{width:100%;font-weight:600}.prep-parent-children input[type=email]{flex:1;min-width:220px;padding:10px;border:1px solid #cbd5e1;border-radius:6px}.prep-parent-children button{padding:10px 14px;border:0;border-radius:6px;background:#4338ca;color:#fff;cursor:pointer}.prep-parent-children ul{padding:0;list-style:none}.prep-parent-children li{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid #e5e7eb}.prep-parent-children li form{margin:0}.prep-parent-children li button{background:#b91c1c}.prep-parent-children__notice{padding:10px;background:#f1f5f9}.prep-parent-children__notice--error{background:#fef2f2;color:#991b1b}.prep-parent-children__notice--success{background:#f0fdf4;color:#166534}.prep-parent-children__report{margin-top:14px;border:1px solid #e5e7eb;border-radius:8px;padding:12px}.prep-parent-children__report summary{cursor:pointer;font-weight:700}.prep-parent-children__report summary span{float:right;color:#64748b;font-weight:400}.prep-parent-children__table-wrap{overflow:auto;margin-top:12px}.prep-parent-children table{width:100%;border-collapse:collapse;min-width:650px}.prep-parent-children th,.prep-parent-children td{text-align:left;padding:10px;border-top:1px solid #e5e7eb;font-size:13px}.prep-parent-children th{font-size:11px;text-transform:uppercase;color:#64748b}.prep-parent-children__bar{display:inline-block;width:110px;height:7px;margin-right:6px;background:#e5e7eb;border-radius:9px;overflow:hidden;vertical-align:middle}.prep-parent-children__bar span{display:block;height:100%;background:#4f46e5}.prep-parent-children__status{padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700}.prep-parent-children__status--passed{background:#dcfce7;color:#166534}.prep-parent-children__status--progress{background:#fef3c7;color:#92400e}.prep-parent-children__status--not-started{background:#f1f5f9;color:#475569}</style></div>
 		<?php return (string) ob_get_clean();
 	}
 
