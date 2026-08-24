@@ -15,13 +15,20 @@ final class Prep_Expert_Live_Class {
 	const ATTENDANCE_POST_META = '_attendance_record';
 	const WAITLIST_META = '_live_class_waitlist';
 
-	public static function init() {
+public static function init() {
+		add_action( 'woocommerce_payment_complete', array( __CLASS__, 'enrol_order_user' ) );
+		add_action( 'woocommerce_order_status_processing', array( __CLASS__, 'enrol_order_user' ) );
 		add_action( 'woocommerce_order_status_completed', array( __CLASS__, 'enrol_order_user' ) );
 		add_shortcode( 'live_class_booking', array( __CLASS__, 'booking_shortcode' ) );
 		add_shortcode( 'live_classes', array( __CLASS__, 'classes_shortcode' ) );
 		add_shortcode( 'student_live_classes', array( __CLASS__, 'dashboard_shortcode' ) );
+		add_filter( 'stm_lms_menu_items', array( __CLASS__, 'add_account_menu_item' ) );
+		add_filter( 'stm_lms_sorted_menu', array( __CLASS__, 'add_account_menu_item' ) );
+		add_filter( 'stm_lms_sorted_student_menu', array( __CLASS__, 'add_account_menu_item' ) );
 		add_action( 'init', array( __CLASS__, 'handle_waitlist_post' ), 1 );
-		add_action( 'admin_post_prep_expert_join_live_class', array( __CLASS__, 'join_class' ) );
+		
+		// Admin-post URL redirection fix
+		add_action( 'init', array( __CLASS__, 'handle_frontend_join_request' ), 5 );
 		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ) );
 	}
 
@@ -47,6 +54,17 @@ final class Prep_Expert_Live_Class {
 		$product_id = absint( self::field( $class_id, 'linked_wc_product', 0 ) );
 		$user = get_userdata( $user_id );
 		return $product_id && $user && function_exists( 'wc_customer_bought_product' ) && wc_customer_bought_product( $user->user_email, $user_id, $product_id );
+	}
+
+	public static function add_account_menu_item( $menus ) {
+		if ( ! is_user_logged_in() || ! is_array( $menus ) ) { return $menus; }
+		foreach ( $menus as $menu ) {
+			if ( is_array( $menu ) && ( 'prep-live-classes' === ( $menu['id'] ?? '' ) || 'prep-live-classes' === ( $menu['slug'] ?? '' ) ) ) { return $menus; }
+		}
+		$page = get_page_by_path( 'student-live-classes' );
+		$url = $page ? get_permalink( $page ) : home_url( '/student-live-classes/' );
+		$menus[] = array( 'order' => 175, 'id' => 'prep-live-classes', 'slug' => 'prep-live-classes', 'lms_template' => 'account/main', 'menu_title' => esc_html__( 'My Live Classes', 'prep-expert-exam-papers' ), 'menu_icon' => 'stmlms-menu-live-stream', 'menu_url' => $url, 'is_active' => is_page( 'student-live-classes' ), 'menu_place' => 'learning', 'section' => 'account' );
+		return $menus;
 	}
 
 	public static function enrol_order_user( $order_id ) {
@@ -78,7 +96,7 @@ final class Prep_Expert_Live_Class {
 	public static function booking_shortcode( $atts ) {
 		$class_id = absint( shortcode_atts( array( 'id' => 0 ), $atts )['id'] );
 		if ( ! $class_id || self::POST_TYPE !== get_post_type( $class_id ) ) { return ''; }
-		$capacity = max( 0, (int) self::field( $class_id, 'class_capacity', 0 ) );
+		$capacity = max( 0, (int) self::field( $class_id, 'class_capacity', 10 ) );
 		$enrolled = self::ids( get_post_meta( $class_id, self::ENROLLED_POST_META, true ) );
 		$remaining = max( 0, $capacity - count( $enrolled ) );
 		$product_id = absint( self::field( $class_id, 'linked_wc_product', 0 ) );
@@ -92,10 +110,6 @@ final class Prep_Expert_Live_Class {
 		return $out . '</div>';
 	}
 
-	/**
-	 * Render published live classes as a frontend list.
-	 * Usage: [live_classes] or [live_classes limit="12" order="ASC"]
-	 */
 	public static function classes_shortcode( $atts ) {
 		$css_path = plugin_dir_path( PREP_EXPERT_EXAM_PAPERS_FILE ) . 'assets/css/prep-expert-live-classes.css';
 		$css_url  = plugin_dir_url( PREP_EXPERT_EXAM_PAPERS_FILE ) . 'assets/css/prep-expert-live-classes.css';
@@ -109,7 +123,7 @@ final class Prep_Expert_Live_Class {
 		$out = '<div class="prep-expert-live-classes-list">';
 		foreach ( $classes as $class ) {
 			$class_id  = absint( $class->ID );
-			$capacity  = max( 0, (int) self::field( $class_id, 'class_capacity', 0 ) );
+			$capacity  = max( 0, (int) self::field( $class_id, 'class_capacity', 10 ) );
 			$occupied  = count( self::ids( get_post_meta( $class_id, self::ENROLLED_POST_META, true ) ) );
 			$start     = self::class_time( $class_id );
 			$product_id = absint( self::field( $class_id, 'linked_wc_product', 0 ) );
@@ -129,28 +143,109 @@ final class Prep_Expert_Live_Class {
 		return $out . '</div>';
 	}
 
-	private static function class_time( $class_id ) { $raw = self::field( $class_id, 'class_date_time' ); return $raw ? strtotime( $raw ) : false; }
+	private static function class_time( $class_id ) {
+		$raw = self::field( $class_id, 'class_date_time' );
+		if ( $raw instanceof DateTimeInterface ) { return $raw->getTimestamp(); }
+		if ( is_numeric( $raw ) ) { return absint( $raw ); }
+		if ( ! is_string( $raw ) || '' === trim( $raw ) ) { return false; }
+		$raw = trim( $raw );
+		foreach ( array( 'Y-m-d H:i:s', 'Y-m-d H:i', 'd/m/Y g:i a', 'd/m/Y H:i', 'm/d/Y g:i a' ) as $format ) {
+			$date = DateTime::createFromFormat( $format, $raw, wp_timezone() );
+			if ( $date instanceof DateTime ) { return $date->getTimestamp(); }
+		}
+		$timestamp = strtotime( $raw );
+		return false !== $timestamp ? $timestamp : false;
+	}
 
 	public static function dashboard_shortcode() {
 		if ( ! is_user_logged_in() ) { return '<p>' . esc_html__( 'Please log in to view your classes.', 'prep-expert-exam-papers' ) . '</p>'; }
 		$user_id = get_current_user_id(); $classes = self::ids( get_user_meta( $user_id, self::ENROLLED_USER_META, true ) );
-		// Include completed purchases immediately, even if the enrollment hook has not run yet.
 		foreach ( get_posts( array( 'post_type' => self::POST_TYPE, 'post_status' => 'publish', 'posts_per_page' => -1, 'fields' => 'ids' ) ) as $candidate_id ) {
 			if ( self::user_has_access( $candidate_id, $user_id ) && ! in_array( absint( $candidate_id ), $classes, true ) ) { $classes[] = absint( $candidate_id ); }
 		}
-		$out = '<table class="prep-expert-live-classes"><thead><tr><th>Class</th><th>Date/Time</th><th>Duration</th><th>Capacity</th><th>Status</th><th>Recording</th></tr></thead><tbody>';
-		foreach ( $classes as $class_id ) { if ( self::POST_TYPE !== get_post_type( $class_id ) || ! self::user_has_access( $class_id, $user_id ) ) { continue; } $start = self::class_time( $class_id ); $record = get_post_meta( $class_id, self::ATTENDANCE_POST_META, true ); $record = is_array( $record ) ? $record : array(); $attended = isset( $record[ $user_id ] ); $now = current_time( 'timestamp' ); $status = $attended ? '✓ Attended' : ( $start && $now >= $start - 900 && $now <= $start + 7200 ? '<a href="' . esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=prep_expert_join_live_class&class_id=' . $class_id ), 'prep_expert_join_' . $class_id ) ) . '">Join Class</a>' : ( $start && $now < $start ? 'Upcoming' : 'Ended' ) ); $recording = self::field( $class_id, 'class_recording_url' ); $out .= '<tr><td>' . esc_html( get_the_title( $class_id ) ) . '</td><td>' . esc_html( $start ? wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $start ) : '—' ) . '</td><td>' . esc_html( self::field( $class_id, 'class_duration', '—' ) ) . '</td><td>' . esc_html( self::field( $class_id, 'class_capacity', '—' ) ) . '</td><td>' . wp_kses_post( $status ) . '</td><td>' . ( $recording && wp_http_validate_url( $recording ) ? '<a href="' . esc_url( $recording ) . '" target="_blank" rel="noopener">View Recording</a>' : '—' ) . '</td></tr>'; }
+		$out = '<table class="prep-expert-live-classes widefat striped"><thead><tr><th>Class</th><th>Date/Time</th><th>Status</th><th>Session Recording (Vimeo)</th></tr></thead><tbody>';
+		foreach ( $classes as $class_id ) { 
+			if ( self::POST_TYPE !== get_post_type( $class_id ) || ! self::user_has_access( $class_id, $user_id ) ) { continue; } 
+			$start = self::class_time( $class_id ); 
+			$record = get_post_meta( $class_id, self::ATTENDANCE_POST_META, true ); 
+			$record = is_array( $record ) ? $record : array(); 
+			$attended = isset( $record[ $user_id ] ); 
+			$now = current_time( 'timestamp' ); 
+
+			if ( $attended ) {
+				$status = '<span style="color:green; font-weight:bold;">✓ Attended</span>';
+			} elseif ( $start && $now >= ( $start - 900 ) && $now <= ( $start + 7200 ) ) {
+				//$join_url = wp_nonce_url( admin_url( 'admin-post.php?action=prep_expert_join_live_class&class_id=' . $class_id ), 'prep_expert_join_' . $class_id );
+				$join_url = wp_nonce_url( add_query_arg( array( 'pe_action' => 'join_live_class', 'class_id' => $class_id ), home_url( '/' ) ), 'prep_expert_join_' . $class_id );
+				$status = '<a class="button" style="background:#28a745; color:#fff;" href="' . esc_url( $join_url ) . '">Join Class</a>';
+			} elseif ( $start && $now > ( $start + 7200 ) ) {
+				$status = '<span style="color:#dc3545;">Missed</span>';
+			} else {
+				$status = '<span style="color:#888;">Upcoming</span>';
+			}
+
+			$recording_url = self::field( $class_id, 'class_recording_url' ); 
+			$recording_output = '—';
+			if ( ! empty( $recording_url ) && wp_http_validate_url( $recording_url ) ) {
+				preg_match( '/vimeo\.com\/(?:video\/)?([0-9]+)/', $recording_url, $matches );
+				$vimeo_id = isset( $matches[1] ) ? $matches[1] : '';
+				if ( $vimeo_id ) {
+					$recording_output = '<div class="pe-vimeo-wrapper" style="max-width:300px;"><iframe src="https://player.vimeo.com/video/' . esc_attr( $vimeo_id ) . '?badge=0&autopause=0&player_id=0" frameborder="0" allow="autoplay; fullscreen" allowfullscreen style="width:100%; height:160px; border-radius:6px;"></iframe></div>';
+				} else {
+					$recording_output = '<a href="' . esc_url( $recording_url ) . '" target="_blank" rel="noopener">Watch Recording</a>';
+				}
+			} else {
+				$recording_output = ( $start && $now < $start ) ? '<em>Available after class</em>' : '<em>No recording added</em>';
+			}
+
+			$out .= '<tr><td><strong>' . esc_html( get_the_title( $class_id ) ) . '</strong></td><td>' . esc_html( $start ? wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $start ) : '—' ) . '</td><td>' . wp_kses_post( $status ) . '</td><td>' . wp_kses_post( $recording_output ) . '</td></tr>'; 
+		}
 		return $out . '</tbody></table>';
 	}
 
-	public static function join_class() {
-		$class_id = absint( $_GET['class_id'] ?? 0 ); if ( ! is_user_logged_in() || ! $class_id || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ?? '' ) ), 'prep_expert_join_' . $class_id ) ) { wp_die( esc_html__( 'Invalid join request.', 'prep-expert-exam-papers' ), 403 ); }
-		$user_id = get_current_user_id(); if ( ! self::user_has_access( $class_id, $user_id ) ) { wp_die( esc_html__( 'You must purchase this class before joining.', 'prep-expert-exam-papers' ), 403 ); }
-		$start = self::class_time( $class_id ); $now = current_time( 'timestamp' ); if ( ! $start || $now < $start - 900 || $now > $start + 7200 ) { wp_die( esc_html__( 'This class is not currently available.', 'prep-expert-exam-papers' ), 403 ); }
-		$timestamp = current_time( 'mysql' ); update_user_meta( $user_id, '_attended_class_' . $class_id, $timestamp ); $record = get_post_meta( $class_id, self::ATTENDANCE_POST_META, true ); $record = is_array( $record ) ? $record : array(); $record[ $user_id ] = $timestamp; update_post_meta( $class_id, self::ATTENDANCE_POST_META, $record );
-		$meeting_id = preg_replace( '/[^0-9]/', '', (string) self::field( $class_id, 'zoom_meeting_id' ) ); $url = $meeting_id ? 'https://zoom.us/j/' . $meeting_id : ''; if ( ! $url || ! wp_http_validate_url( $url ) ) { wp_die( esc_html__( 'The class link is unavailable.', 'prep-expert-exam-papers' ), 500 ); } wp_safe_redirect( $url ); exit;
+public static function handle_frontend_join_request() {
+		if ( isset( $_GET['pe_action'] ) && 'join_live_class' === $_GET['pe_action'] ) {
+			self::join_class();
+		}
 	}
 
+	public static function join_class() {
+		$class_id = absint( $_GET['class_id'] ?? 0 ); 
+		if ( ! is_user_logged_in() || ! $class_id || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ?? '' ) ), 'prep_expert_join_' . $class_id ) ) { 
+			wp_die( esc_html__( 'Invalid join request.', 'prep-expert-exam-papers' ), 403 ); 
+		}
+
+		$user_id = get_current_user_id(); 
+		if ( ! self::user_has_access( $class_id, $user_id ) ) { 
+			wp_die( esc_html__( 'You must purchase this class before joining.', 'prep-expert-exam-papers' ), 403 ); 
+		}
+
+		$start = self::class_time( $class_id ); 
+		$now   = current_time( 'timestamp' ); 
+		if ( ! $start || $now < ( $start - 900 ) || $now > ( $start + 7200 ) ) { 
+			wp_die( esc_html__( 'This class is not currently available.', 'prep-expert-exam-papers' ), 403 ); 
+		}
+
+		// Record Attendance
+		$timestamp = current_time( 'mysql' ); 
+		update_user_meta( $user_id, '_attended_class_' . $class_id, $timestamp ); 
+		
+		$record = get_post_meta( $class_id, self::ATTENDANCE_POST_META, true ); 
+		$record = is_array( $record ) ? $record : array(); 
+		$record[ $user_id ] = $timestamp; 
+		update_post_meta( $class_id, self::ATTENDANCE_POST_META, $record );
+
+		// Parse Zoom URL / Meeting ID
+		$meeting_id = preg_replace( '/[^0-9]/', '', (string) self::field( $class_id, 'zoom_meeting_id' ) ); 
+		$url = $meeting_id ? 'https://zoom.us/j/' . $meeting_id : ''; 
+
+		if ( ! $url || ! wp_http_validate_url( $url ) ) { 
+			wp_die( esc_html__( 'The class link is unavailable.', 'prep-expert-exam-papers' ), 500 ); 
+		} 
+
+		wp_redirect( $url ); 
+		exit;
+	}
 
 	public static function admin_menu() { add_submenu_page( 'edit.php?post_type=' . self::POST_TYPE, 'Attendance Reports', 'Attendance Reports', 'manage_options', 'prep-expert-live-attendance', array( __CLASS__, 'attendance_page' ) ); }
 
