@@ -149,10 +149,22 @@ public static function init() {
 		if ( is_numeric( $raw ) ) { return absint( $raw ); }
 		if ( ! is_string( $raw ) || '' === trim( $raw ) ) { return false; }
 		$raw = trim( $raw );
-		foreach ( array( 'Y-m-d H:i:s', 'Y-m-d H:i', 'd/m/Y g:i a', 'd/m/Y H:i', 'm/d/Y g:i a' ) as $format ) {
+		foreach ( array( 'Y-m-d H:i:s', 'Y-m-d H:i', 'Y-m-d\\TH:i:s', 'Y-m-d\\TH:i', 'd/m/Y g:i a', 'd/m/Y H:i:s', 'd/m/Y H:i', 'm/d/Y g:i a', 'm/d/Y H:i:s', 'm/d/Y H:i' ) as $format ) {
 			$date = DateTime::createFromFormat( $format, $raw, wp_timezone() );
-			if ( $date instanceof DateTime ) { return $date->getTimestamp(); }
+			$errors = DateTime::getLastErrors();
+			if ( $date instanceof DateTime && ( false === $errors || ( 0 === $errors['warning_count'] && 0 === $errors['error_count'] ) ) ) { return $date->getTimestamp(); }
 		}
+
+		// ACF can return a formatted value, while the database stores another
+		// format. Parse the raw ACF value as a final fallback.
+		if ( function_exists( 'get_field' ) ) {
+			$stored = get_field( 'class_date_time', $class_id, false );
+			if ( is_string( $stored ) && $stored !== $raw ) {
+				$timestamp = strtotime( $stored );
+				if ( false !== $timestamp ) { return $timestamp; }
+			}
+		}
+
 		$timestamp = strtotime( $raw );
 		return false !== $timestamp ? $timestamp : false;
 	}
@@ -187,13 +199,7 @@ public static function init() {
 			$recording_url = self::field( $class_id, 'class_recording_url' ); 
 			$recording_output = '—';
 			if ( ! empty( $recording_url ) && wp_http_validate_url( $recording_url ) ) {
-				preg_match( '/vimeo\.com\/(?:video\/)?([0-9]+)/', $recording_url, $matches );
-				$vimeo_id = isset( $matches[1] ) ? $matches[1] : '';
-				if ( $vimeo_id ) {
-					$recording_output = '<div class="pe-vimeo-wrapper" style="max-width:300px;"><iframe src="https://player.vimeo.com/video/' . esc_attr( $vimeo_id ) . '?badge=0&autopause=0&player_id=0" frameborder="0" allow="autoplay; fullscreen" allowfullscreen style="width:100%; height:160px; border-radius:6px;"></iframe></div>';
-				} else {
-					$recording_output = '<a href="' . esc_url( $recording_url ) . '" target="_blank" rel="noopener">Watch Recording</a>';
-				}
+				$recording_output = '<a class="button prep-expert-live-recording-link" href="' . esc_url( $recording_url ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Watch Recording', 'prep-expert-exam-papers' ) . '</a>';
 			} else {
 				$recording_output = ( $start && $now < $start ) ? '<em>Available after class</em>' : '<em>No recording added</em>';
 			}
@@ -254,6 +260,7 @@ public static function handle_frontend_join_request() {
 		foreach ( get_posts( array( 'post_type' => self::POST_TYPE, 'post_status' => 'any', 'posts_per_page' => -1 ) ) as $class ) { $enrolled = self::ids( get_post_meta( $class->ID, self::ENROLLED_POST_META, true ) ); $records = get_post_meta( $class->ID, self::ATTENDANCE_POST_META, true ); $records = is_array( $records ) ? $records : array(); foreach ( $enrolled as $user_id ) { $user = get_userdata( $user_id ); echo '<tr><td>' . esc_html( get_the_title( $class ) ) . '</td><td>' . esc_html( $user ? $user->user_email : 'User #' . $user_id ) . '</td><td>' . esc_html( isset( $records[ $user_id ] ) ? 'Attended' : 'Not attended' ) . '</td><td>' . esc_html( isset( $records[ $user_id ] ) ? $records[ $user_id ] : '—' ) . '</td></tr>'; } }
 		echo '</tbody></table></div>';
 	}
-}
-
+	
+	}
+require_once __DIR__ . '/class-live-class-parent-extension.php';
 Prep_Expert_Live_Class::init();

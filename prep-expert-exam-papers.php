@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Prep Expert Exam Papers
  * Description: Shortcode for rendering ACF exam papers with WooCommerce purchase-based access control.
- * Version: 1.2.1
+ * Version: 1.2.2
  * Author: Prep Expert
  * Text Domain: prep-expert-exam-papers
  *
