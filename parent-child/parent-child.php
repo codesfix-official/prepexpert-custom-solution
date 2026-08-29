@@ -11,6 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! function_exists( 'prep_expert_parent_child_write_log' ) ) {
 	function prep_expert_parent_child_write_log( $message, $context = array() ) {
+		return;
 		$base_dir = defined( 'WP_CONTENT_DIR' ) && WP_CONTENT_DIR
 			? WP_CONTENT_DIR
 			: rtrim( ABSPATH, '/\\' ) . '/wp-content';

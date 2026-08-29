@@ -89,6 +89,30 @@ final class Prep_Expert_Parent_Child_Database {
 		return absint( $found ) > 0;
 	}
 
+	/**
+	 * Get the active parent account for a child user.
+	 *
+	 * @param int $child_id Child user ID.
+	 * @return int Parent user ID, or 0 when no active relationship exists.
+	 */
+	public static function get_parent_by_child( $child_id ) {
+		global $wpdb;
+
+		$child_id = absint( $child_id );
+		if ( ! $child_id ) {
+			return 0;
+		}
+
+		$parent_id = $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT parent_user_id FROM ' . self::table_name() . ' WHERE child_user_id = %d AND removed_at IS NULL ORDER BY id ASC LIMIT 1',
+				$child_id
+			)
+		);
+
+		return absint( $parent_id );
+	}
+
 	public static function add( $parent_id, $child_id ) {
 		global $wpdb;
 		$parent_id = absint( $parent_id );

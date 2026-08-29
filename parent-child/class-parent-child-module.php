@@ -302,10 +302,7 @@ final class Prep_Expert_Parent_Child_Module {
 		if ( ! ( $user instanceof WP_User ) ) {
 			return false;
 		}
-		if ( in_array( self::CHILD_ROLE, (array) $user->roles, true ) ) {
-			return false;
-		}
-		return true;
+		return $user->has_cap( self::CAPABILITY ) && ! in_array( self::CHILD_ROLE, (array) $user->roles, true );
 	}
 
 	private function create_child_account( $email ) {
@@ -355,7 +352,7 @@ final class Prep_Expert_Parent_Child_Module {
 		}
 
 		$marks = implode( ',', array_fill( 0, count( $user_ids ), '%d' ) );
-		$query = "SELECT user_id, course_id, progress FROM {$table} WHERE user_id IN ({$marks})";
+		$query = "SELECT user_id, course_id, progress_percent FROM {$table} WHERE user_id IN ({$marks})";
 		$rows  = $wpdb->get_results( $wpdb->prepare( $query, ...$user_ids ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 
 		$report = array();
@@ -363,7 +360,7 @@ final class Prep_Expert_Parent_Child_Module {
 			foreach ( $rows as $row ) {
 				$user_id      = absint( $row['user_id'] );
 				$course_id    = absint( $row['course_id'] );
-				$raw_progress = is_numeric( $row['progress'] ) ? (float) $row['progress'] : 0;
+				$raw_progress = is_numeric( $row['progress_percent'] ) ? (float) $row['progress_percent'] : 0;
 				$progress     = min( 100, max( 0, (int) round( $raw_progress ) ) );
 
 				$report[ $user_id ][] = array(

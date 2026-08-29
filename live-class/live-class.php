@@ -15,7 +15,7 @@ final class Prep_Expert_Live_Class {
 	const ATTENDANCE_POST_META = '_attendance_record';
 	const WAITLIST_META = '_live_class_waitlist';
 
-public static function init() {
+	public static function init() {
 		add_action( 'woocommerce_payment_complete', array( __CLASS__, 'enrol_order_user' ) );
 		add_action( 'woocommerce_order_status_processing', array( __CLASS__, 'enrol_order_user' ) );
 		add_action( 'woocommerce_order_status_completed', array( __CLASS__, 'enrol_order_user' ) );
@@ -32,28 +32,75 @@ public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ) );
 	}
 
-	private static function field( $post_id, $key, $default = '' ) {
+	public static function field( $post_id, $key, $default = '' ) {
 		if ( ! function_exists( 'get_field' ) ) { return $default; }
 		$value = get_field( $key, $post_id );
 		if ( is_object( $value ) && isset( $value->ID ) ) { $value = $value->ID; }
 		return '' !== $value && null !== $value ? $value : $default;
 	}
 
-	private static function ids( $value ) {
+	public static function ids( $value ) {
 		$value = is_array( $value ) ? $value : array();
 		return array_values( array_unique( array_filter( array_map( 'absint', $value ) ) ) );
 	}
 
-	private static function class_ids_for_product( $product_id ) {
+	public static function class_ids_for_product( $product_id ) {
 		$posts = get_posts( array( 'post_type' => self::POST_TYPE, 'post_status' => 'publish', 'posts_per_page' => -1, 'fields' => 'ids', 'meta_key' => 'linked_wc_product', 'meta_value' => absint( $product_id ) ) );
 		return array_map( 'absint', $posts );
 	}
 
-	private static function user_has_access( $class_id, $user_id ) {
-		if ( in_array( absint( $class_id ), self::ids( get_user_meta( $user_id, self::ENROLLED_USER_META, true ) ), true ) ) { return true; }
-		$product_id = absint( self::field( $class_id, 'linked_wc_product', 0 ) );
-		$user = get_userdata( $user_id );
-		return $product_id && $user && function_exists( 'wc_customer_bought_product' ) && wc_customer_bought_product( $user->user_email, $user_id, $product_id );
+	public static function user_has_access( $class_id, $user_id ) {
+		$user_id  = absint( $user_id );
+		$class_id = absint( $class_id );
+		if ( ! $user_id || ! $class_id ) {
+			return false;
+		}
+		if ( self::POST_TYPE !== get_post_type( $class_id ) || 'publish' !== get_post_status( $class_id ) ) {
+			return false;
+		}
+
+		// 1. Check direct user meta arrays (Loose comparison array match)
+		$enrolled_classes = array_map( 'absint', (array) self::ids( get_user_meta( $user_id, self::ENROLLED_USER_META, true ) ) );
+		$alt_classes      = array_map( 'absint', (array) self::ids( get_user_meta( $user_id, '_enrolled_live_classes', true ) ) );
+		$all_user_classes = array_unique( array_merge( $enrolled_classes, $alt_classes ) );
+
+		if ( in_array( $class_id, $all_user_classes, true ) ) {
+			return true;
+		}
+
+		// 2. Individual enrolled meta key check
+		if ( get_user_meta( $user_id, '_enrolled_live_class_' . $class_id, true ) ) {
+			return true;
+		}
+
+		// 3. Class post meta enrolled students array check
+		$enrolled_students = array_map( 'absint', (array) self::ids( get_post_meta( $class_id, self::ENROLLED_POST_META, true ) ) );
+		if ( in_array( $user_id, $enrolled_students, true ) ) {
+			return true;
+		}
+
+		// 4. Course-Level Access Mapping Check (Parent Product ID Check)
+		$associated_course = absint( get_post_meta( $class_id, '_associated_course_id', true ) );
+		if ( $associated_course ) {
+			$enrolled_courses = array_map( 'absint', (array) get_user_meta( $user_id, '_enrolled_course_ids', true ) );
+			if ( in_array( $associated_course, $enrolled_courses, true ) ) {
+				return true;
+			}
+		}
+
+		// 5. Parent Account Fallback (If user is Child, check Parent Enrolments)
+		if ( class_exists( 'Prep_Expert_Parent_Child_Database' ) ) {
+			$parent_id = Prep_Expert_Parent_Child_Database::get_parent_by_child( $user_id );
+			if ( $parent_id && $parent_id !== $user_id ) {
+				// Recursive check for parent access linked to child
+				$parent_courses = array_map( 'absint', (array) get_user_meta( $parent_id, '_enrolled_course_ids', true ) );
+				if ( $associated_course && in_array( $associated_course, $parent_courses, true ) ) {
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 
 	public static function add_account_menu_item( $menus ) {
@@ -62,24 +109,102 @@ public static function init() {
 			if ( is_array( $menu ) && ( 'prep-live-classes' === ( $menu['id'] ?? '' ) || 'prep-live-classes' === ( $menu['slug'] ?? '' ) ) ) { return $menus; }
 		}
 		$page = get_page_by_path( 'student-live-classes' );
-		$url = $page ? get_permalink( $page ) : home_url( '/student-live-classes/' );
+		$url  = $page ? get_permalink( $page ) : ( function_exists( 'ms_plugin_user_account_url' ) ? ms_plugin_user_account_url( 'prep-live-classes' ) : home_url( '/student-live-classes/' ) );
 		$menus[] = array( 'order' => 175, 'id' => 'prep-live-classes', 'slug' => 'prep-live-classes', 'lms_template' => 'account/main', 'menu_title' => esc_html__( 'My Live Classes', 'prep-expert-exam-papers' ), 'menu_icon' => 'stmlms-menu-live-stream', 'menu_url' => $url, 'is_active' => is_page( 'student-live-classes' ), 'menu_place' => 'learning', 'section' => 'account' );
 		return $menus;
 	}
 
 	public static function enrol_order_user( $order_id ) {
 		$order = function_exists( 'wc_get_order' ) ? wc_get_order( $order_id ) : false;
-		if ( ! $order || ! $order->get_user_id() ) { return; }
-		$user_id = absint( $order->get_user_id() );
-		$user_classes = self::ids( get_user_meta( $user_id, self::ENROLLED_USER_META, true ) );
+		if ( ! $order ) { return; }
+
+		// Idempotency check
+		if ( '1' === $order->get_meta( '_prep_expert_enrolment_processed' ) ) {
+			return;
+		}
+
+		$selected_child = $order->get_meta( '_enrolled_child_user_id' );
+		$target_user_id = $selected_child ? absint( $selected_child ) : absint( $order->get_user_id() );
+
+		if ( ! $target_user_id ) {
+			$target_user_id = absint( $order->get_customer_id() );
+		}
+
+		if ( ! $target_user_id ) {
+			return;
+		}
+
+		$parent_user_id     = absint( $order->get_user_id() );
+		$is_child_enrollment = ( $selected_child && $target_user_id !== $parent_user_id );
+
+		$user_classes   = self::ids( get_user_meta( $target_user_id, self::ENROLLED_USER_META, true ) );
+		$alt_classes    = self::ids( get_user_meta( $target_user_id, '_enrolled_live_classes', true ) );
+		$user_classes   = array_values( array_unique( array_merge( $user_classes, $alt_classes ) ) );
+
+		$parent_classes = array();
+		if ( $is_child_enrollment && $parent_user_id ) {
+			$p_classes      = self::ids( get_user_meta( $parent_user_id, self::ENROLLED_USER_META, true ) );
+			$p_alt_classes  = self::ids( get_user_meta( $parent_user_id, '_enrolled_live_classes', true ) );
+			$parent_classes = array_values( array_unique( array_merge( $p_classes, $p_alt_classes ) ) );
+		}
+
+		$processed = false;
+
 		foreach ( $order->get_items() as $item ) {
-			foreach ( self::class_ids_for_product( $item->get_product_id() ) as $class_id ) {
+			$product_id = $item->get_product_id();
+			$class_ids  = self::class_ids_for_product( $product_id );
+
+			$meta_class_ids = get_post_meta( $product_id, '_linked_live_class_ids', true );
+			if ( is_array( $meta_class_ids ) ) {
+				$class_ids = array_unique( array_merge( $class_ids, array_map( 'absint', $meta_class_ids ) ) );
+			}
+
+			foreach ( $class_ids as $class_id ) {
+				$class_id = absint( $class_id );
+				if ( ! $class_id ) {
+					continue;
+				}
+
+				// Enroll target student into post meta
 				$enrolled = self::ids( get_post_meta( $class_id, self::ENROLLED_POST_META, true ) );
-				if ( ! in_array( $user_id, $enrolled, true ) ) { $enrolled[] = $user_id; update_post_meta( $class_id, self::ENROLLED_POST_META, $enrolled ); }
-				if ( ! in_array( $class_id, $user_classes, true ) ) { $user_classes[] = $class_id; }
+				if ( ! in_array( $target_user_id, $enrolled, true ) ) {
+					$enrolled[] = $target_user_id;
+				}
+
+				// If purchased for a child, remove parent from enrolled students if present
+				if ( $is_child_enrollment && $parent_user_id ) {
+					$enrolled = array_values( array_diff( $enrolled, array( $parent_user_id ) ) );
+				}
+				update_post_meta( $class_id, self::ENROLLED_POST_META, $enrolled );
+
+				// Enroll target student into user meta
+				if ( ! in_array( $class_id, $user_classes, true ) ) {
+					$user_classes[] = $class_id;
+				}
+				update_user_meta( $target_user_id, '_enrolled_live_class_' . $class_id, current_time( 'mysql' ) );
+
+				// If purchased for a child, remove class from parent's personal user meta
+				if ( $is_child_enrollment && $parent_user_id ) {
+					$parent_classes = array_values( array_diff( $parent_classes, array( $class_id ) ) );
+					delete_user_meta( $parent_user_id, '_enrolled_live_class_' . $class_id );
+				}
+
+				$processed = true;
 			}
 		}
-		update_user_meta( $user_id, self::ENROLLED_USER_META, $user_classes );
+
+		if ( $processed ) {
+			update_user_meta( $target_user_id, self::ENROLLED_USER_META, $user_classes );
+			update_user_meta( $target_user_id, '_enrolled_live_classes', $user_classes );
+
+			if ( $is_child_enrollment && $parent_user_id ) {
+				update_user_meta( $parent_user_id, self::ENROLLED_USER_META, $parent_classes );
+				update_user_meta( $parent_user_id, '_enrolled_live_classes', $parent_classes );
+			}
+
+			$order->update_meta_data( '_prep_expert_enrolment_processed', '1' );
+			$order->save();
+		}
 	}
 
 	public static function handle_waitlist_post() {
@@ -111,9 +236,11 @@ public static function init() {
 	}
 
 	public static function classes_shortcode( $atts ) {
-		$css_path = plugin_dir_path( PREP_EXPERT_EXAM_PAPERS_FILE ) . 'assets/css/prep-expert-live-classes.css';
-		$css_url  = plugin_dir_url( PREP_EXPERT_EXAM_PAPERS_FILE ) . 'assets/css/prep-expert-live-classes.css';
-		wp_enqueue_style( 'prep-expert-live-classes', $css_url, array(), file_exists( $css_path ) ? (string) filemtime( $css_path ) : '1.0.0' );
+		if ( defined( 'PREP_EXPERT_EXAM_PAPERS_FILE' ) ) {
+			$css_path = plugin_dir_path( PREP_EXPERT_EXAM_PAPERS_FILE ) . 'assets/css/prep-expert-live-classes.css';
+			$css_url  = plugin_dir_url( PREP_EXPERT_EXAM_PAPERS_FILE ) . 'assets/css/prep-expert-live-classes.css';
+			wp_enqueue_style( 'prep-expert-live-classes', $css_url, array(), file_exists( $css_path ) ? (string) filemtime( $css_path ) : '1.0.0' );
+		}
 		$atts = shortcode_atts( array( 'limit' => -1, 'order' => 'ASC' ), $atts, 'live_classes' );
 		$limit = (int) $atts['limit'];
 		$order = 'DESC' === strtoupper( sanitize_key( $atts['order'] ) ) ? 'DESC' : 'ASC';
@@ -143,7 +270,7 @@ public static function init() {
 		return $out . '</div>';
 	}
 
-	private static function class_time( $class_id ) {
+	public static function class_time( $class_id ) {
 		$raw = self::field( $class_id, 'class_date_time' );
 		if ( $raw instanceof DateTimeInterface ) { return $raw->getTimestamp(); }
 		if ( is_numeric( $raw ) ) { return absint( $raw ); }
@@ -170,6 +297,10 @@ public static function init() {
 	}
 
 	public static function dashboard_shortcode() {
+		if ( class_exists( 'Prep_Expert_Live_Class_Parent_Extension' ) ) {
+			return Prep_Expert_Live_Class_Parent_Extension::render_shortcode_dashboard();
+		}
+
 		if ( ! is_user_logged_in() ) { return '<p>' . esc_html__( 'Please log in to view your classes.', 'prep-expert-exam-papers' ) . '</p>'; }
 		$user_id = get_current_user_id(); $classes = self::ids( get_user_meta( $user_id, self::ENROLLED_USER_META, true ) );
 		foreach ( get_posts( array( 'post_type' => self::POST_TYPE, 'post_status' => 'publish', 'posts_per_page' => -1, 'fields' => 'ids' ) ) as $candidate_id ) {
@@ -187,7 +318,6 @@ public static function init() {
 			if ( $attended ) {
 				$status = '<span style="color:green; font-weight:bold;">✓ Attended</span>';
 			} elseif ( $start && $now >= ( $start - 900 ) && $now <= ( $start + 7200 ) ) {
-				//$join_url = wp_nonce_url( admin_url( 'admin-post.php?action=prep_expert_join_live_class&class_id=' . $class_id ), 'prep_expert_join_' . $class_id );
 				$join_url = wp_nonce_url( add_query_arg( array( 'pe_action' => 'join_live_class', 'class_id' => $class_id ), home_url( '/' ) ), 'prep_expert_join_' . $class_id );
 				$status = '<a class="button" style="background:#28a745; color:#fff;" href="' . esc_url( $join_url ) . '">Join Class</a>';
 			} elseif ( $start && $now > ( $start + 7200 ) ) {
@@ -209,8 +339,8 @@ public static function init() {
 		return $out . '</tbody></table>';
 	}
 
-public static function handle_frontend_join_request() {
-		if ( isset( $_GET['pe_action'] ) && 'join_live_class' === $_GET['pe_action'] ) {
+	public static function handle_frontend_join_request() {
+		if ( isset( $_GET['pe_action'] ) && 'join_live_class' === sanitize_key( wp_unslash( $_GET['pe_action'] ) ) ) {
 			self::join_class();
 		}
 	}
@@ -221,8 +351,16 @@ public static function handle_frontend_join_request() {
 			wp_die( esc_html__( 'Invalid join request.', 'prep-expert-exam-papers' ), 403 ); 
 		}
 
-		$user_id = get_current_user_id(); 
-		if ( ! self::user_has_access( $class_id, $user_id ) ) { 
+		$current_user_id = get_current_user_id();
+		$student_id      = isset( $_GET['student_id'] ) ? absint( $_GET['student_id'] ) : $current_user_id;
+
+		if ( $student_id !== $current_user_id ) {
+			if ( ! class_exists( 'Prep_Expert_Parent_Child_Database' ) || ! Prep_Expert_Parent_Child_Database::can_parent_access_child( $current_user_id, $student_id ) ) {
+				wp_die( esc_html__( 'You are not authorized to access this student\'s class.', 'prep-expert-exam-papers' ), 403 );
+			}
+		}
+
+		if ( ! self::user_has_access( $class_id, $student_id ) ) {
 			wp_die( esc_html__( 'You must purchase this class before joining.', 'prep-expert-exam-papers' ), 403 ); 
 		}
 
@@ -232,13 +370,13 @@ public static function handle_frontend_join_request() {
 			wp_die( esc_html__( 'This class is not currently available.', 'prep-expert-exam-papers' ), 403 ); 
 		}
 
-		// Record Attendance
+		// Record Attendance for the student
 		$timestamp = current_time( 'mysql' ); 
-		update_user_meta( $user_id, '_attended_class_' . $class_id, $timestamp ); 
+		update_user_meta( $student_id, '_attended_class_' . $class_id, $timestamp );
 		
 		$record = get_post_meta( $class_id, self::ATTENDANCE_POST_META, true ); 
 		$record = is_array( $record ) ? $record : array(); 
-		$record[ $user_id ] = $timestamp; 
+		$record[ $student_id ] = $timestamp;
 		update_post_meta( $class_id, self::ATTENDANCE_POST_META, $record );
 
 		// Parse Zoom URL / Meeting ID
@@ -249,7 +387,7 @@ public static function handle_frontend_join_request() {
 			wp_die( esc_html__( 'The class link is unavailable.', 'prep-expert-exam-papers' ), 500 ); 
 		} 
 
-		wp_redirect( $url ); 
+		wp_redirect( $url );
 		exit;
 	}
 
@@ -261,6 +399,6 @@ public static function handle_frontend_join_request() {
 		echo '</tbody></table></div>';
 	}
 	
-	}
+}
 require_once __DIR__ . '/class-live-class-parent-extension.php';
 Prep_Expert_Live_Class::init();
