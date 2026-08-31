@@ -144,6 +144,72 @@
 @media (max-width: 600px) {
 	.prep-live-dashboard { padding: 16px; }
 	.prep-live-dashboard__back { margin-bottom: 12px; }
+	.prep-live-dashboard .prep-live-class-table,
+	.prep-live-dashboard .prep-past-paper-table {
+		display: block;
+		width: 100% !important;
+		min-width: 0 !important;
+	}
+
+	.prep-live-dashboard .prep-live-class-table thead,
+	.prep-live-dashboard .prep-past-paper-table thead {
+		display: none;
+	}
+
+	.prep-live-dashboard .prep-live-class-table tbody,
+	.prep-live-dashboard .prep-past-paper-table tbody,
+	.prep-live-dashboard .prep-live-class-table tr,
+	.prep-live-dashboard .prep-past-paper-table tr {
+		display: block;
+		width: 100%;
+	}
+
+	.prep-live-dashboard .prep-live-class-table tr,
+	.prep-live-dashboard .prep-past-paper-table tr {
+		margin-bottom: 14px;
+		border: 1px solid #e2e8f0;
+		border-radius: 10px;
+		background: #fff;
+		box-shadow: 0 2px 8px rgba(15, 23, 42, .05);
+	}
+
+	.prep-live-dashboard .prep-live-class-table td,
+	.prep-live-dashboard .prep-past-paper-table td {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 12px;
+		width: 100%;
+		box-sizing: border-box;
+		padding: 10px !important;
+		border-bottom: 1px solid #f1f5f9;
+		text-align: right;
+	}
+
+	.prep-live-dashboard .prep-live-class-table td:last-child,
+	.prep-live-dashboard .prep-past-paper-table td:last-child {
+		border-bottom: 0;
+	}
+
+	.prep-live-dashboard .prep-live-class-table td::before,
+	.prep-live-dashboard .prep-past-paper-table td::before {
+		flex: 0 0 38%;
+		color: #64748b;
+		font-size: .75rem;
+		font-weight: 700;
+		text-align: left;
+		text-transform: uppercase;
+	}
+
+	.prep-live-dashboard .prep-live-class-table td:nth-child(1)::before { content: 'Class'; }
+	.prep-live-dashboard .prep-live-class-table td:nth-child(2)::before { content: 'Date & Time'; }
+	.prep-live-dashboard .prep-live-class-table td:nth-child(3)::before { content: 'Access'; }
+	.prep-live-dashboard .prep-live-class-table td:nth-child(4)::before { content: 'Attendance'; }
+	.prep-live-dashboard .prep-live-class-table td:nth-child(5)::before { content: 'Recording'; }
+	.prep-live-dashboard .prep-past-paper-table td:nth-child(1)::before { content: 'Past Paper'; }
+	.prep-live-dashboard .prep-past-paper-table td:nth-child(2)::before { content: 'Access'; }
+	.prep-live-dashboard .prep-live-class-table td > *,
+	.prep-live-dashboard .prep-past-paper-table td > * { max-width: 62%; }
 
 	.prep-expert-live-classes-list {
 		gap: 16px;
