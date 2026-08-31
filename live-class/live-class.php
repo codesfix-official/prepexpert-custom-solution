@@ -110,7 +110,9 @@ final class Prep_Expert_Live_Class {
 		}
 		$page = get_page_by_path( 'student-live-classes' );
 		$url  = $page ? get_permalink( $page ) : ( function_exists( 'ms_plugin_user_account_url' ) ? ms_plugin_user_account_url( 'prep-live-classes' ) : home_url( '/student-live-classes/' ) );
-		$menus[] = array( 'order' => 175, 'id' => 'prep-live-classes', 'slug' => 'prep-live-classes', 'lms_template' => 'account/main', 'menu_title' => esc_html__( 'My Live Classes', 'prep-expert-exam-papers' ), 'menu_icon' => 'stmlms-menu-live-stream', 'menu_url' => $url, 'is_active' => is_page( 'student-live-classes' ), 'menu_place' => 'learning', 'section' => 'account' );
+		$current_user = wp_get_current_user();
+		$menu_title   = ( $current_user instanceof WP_User && in_array( 'prep_child', (array) $current_user->roles, true ) ) ? __( 'Student Dashboard', 'prep-expert-exam-papers' ) : __( 'Parent Dashboard', 'prep-expert-exam-papers' );
+		$menus[] = array( 'order' => 175, 'id' => 'prep-live-classes', 'slug' => 'prep-live-classes', 'lms_template' => 'account/main', 'menu_title' => esc_html( $menu_title ), 'menu_icon' => 'stmlms-menu-live-stream', 'menu_url' => $url, 'is_active' => is_page( 'student-live-classes' ), 'menu_place' => 'learning', 'section' => 'account' );
 		return $menus;
 	}
 
