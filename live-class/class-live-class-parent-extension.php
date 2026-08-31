@@ -199,6 +199,9 @@ final class Prep_Expert_Live_Class_Parent_Extension {
 		}
 
 		ob_start();
+		$account_url = function_exists( 'ms_plugin_user_account_url' ) ? ms_plugin_user_account_url() : home_url( '/user-account/' );
+		echo '<div class="prep-live-dashboard">';
+		echo '<a class="prep-live-dashboard__back" href="' . esc_url( $account_url ) . '">&larr; ' . esc_html__( 'Back to Account', 'prep-expert-exam-papers' ) . '</a>';
 
 		// Parent Authorization for Requested Child ID
 		if ( ! empty( $children ) ) {
@@ -266,6 +269,7 @@ final class Prep_Expert_Live_Class_Parent_Extension {
 				? __( 'No enrolled live classes found for this student.', 'prep-expert-exam-papers' )
 				: __( 'No enrolled live classes found for your account.', 'prep-expert-exam-papers' );
 			echo '<p>' . esc_html( $empty_msg ) . '</p>';
+			echo '</div>';
 			return ob_get_clean();
 		}
 
@@ -345,6 +349,7 @@ final class Prep_Expert_Live_Class_Parent_Extension {
 
 		// Past papers are rendered for the parent or the selected child.
 		echo self::render_child_past_papers( $target_user_id, $past_papers_parent_id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		echo '</div>';
 
 		return ob_get_clean();
 	}
