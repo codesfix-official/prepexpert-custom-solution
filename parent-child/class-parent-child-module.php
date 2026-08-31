@@ -230,7 +230,6 @@ final class Prep_Expert_Parent_Child_Module {
 
 		$this->shortcode_rendered = true;
 		$children                 = Prep_Expert_Parent_Child_Database::active_children( get_current_user_id() );
-		$progress                 = $this->get_child_progress( $children );
 		$account_url              = function_exists( 'ms_plugin_user_account_url' ) ? ms_plugin_user_account_url() : home_url( '/user-account/' );
 
 		ob_start();
@@ -273,41 +272,6 @@ final class Prep_Expert_Parent_Child_Module {
 					<?php endforeach; ?>
 				</ul>
 
-				<h3><?php echo esc_html__( 'Child Course Progress', 'prep-expert-exam-papers' ); ?></h3>
-				<?php foreach ( $children as $child ) : ?>
-					<details class="prep-parent-children__report">
-						<summary><?php echo esc_html( $child['display_name'] ); ?> <span><?php echo esc_html( $child['user_email'] ); ?></span></summary>
-						<?php if ( empty( $progress[ $child['child_user_id'] ] ) ) : ?>
-							<p><?php echo esc_html__( 'No MasterStudy course activity is available for this child.', 'prep-expert-exam-papers' ); ?></p>
-						<?php else : ?>
-							<div class="prep-parent-children__table-wrap">
-								<table>
-									<thead>
-										<tr>
-											<th><?php echo esc_html__( 'Course', 'prep-expert-exam-papers' ); ?></th>
-											<th><?php echo esc_html__( 'Progress', 'prep-expert-exam-papers' ); ?></th>
-											<th><?php echo esc_html__( 'Last activity', 'prep-expert-exam-papers' ); ?></th>
-											<th><?php echo esc_html__( 'Status', 'prep-expert-exam-papers' ); ?></th>
-										</tr>
-									</thead>
-									<tbody>
-										<?php foreach ( $progress[ $child['child_user_id'] ] as $course ) : ?>
-											<tr>
-												<td><?php echo esc_html( $course['title'] ); ?></td>
-												<td>
-													<div class="prep-parent-children__bar"><span style="width:<?php echo esc_attr( $course['progress'] ); ?>%"></span></div>
-													<?php echo esc_html( $course['progress'] . '%' ); ?>
-												</td>
-												<td><?php echo esc_html( $course['activity'] ); ?></td>
-												<td><span class="prep-parent-children__status prep-parent-children__status--<?php echo esc_attr( $course['status_class'] ); ?>"><?php echo esc_html( $course['status'] ); ?></span></td>
-											</tr>
-										<?php endforeach; ?>
-									</tbody>
-								</table>
-							</div>
-						<?php endif; ?>
-					</details>
-				<?php endforeach; ?>
 			<?php endif; ?>
 		</div>
 		<style>.prep-parent-children{max-width:1000px;padding:24px;background:#fff;border:1px solid #e5e7eb;border-radius:12px}.prep-parent-children__back{display:inline-flex;align-items:center;min-height:38px;margin-bottom:16px;padding:0 12px;border:1px solid #cbd5e1;border-radius:6px;color:#3730a3;font-size:14px;font-weight:600;line-height:1;text-decoration:none}.prep-parent-children form{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:16px 0}.prep-parent-children label{width:100%;font-weight:600}.prep-parent-children input[type=email]{flex:1;min-width:220px;padding:10px;border:1px solid #cbd5e1;border-radius:6px}.prep-parent-children button{padding:10px 14px;border:0;border-radius:6px;background:#4338ca;color:#fff;cursor:pointer}.prep-parent-children ul{padding:0;list-style:none}.prep-parent-children li{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid #e5e7eb}.prep-parent-children li form{margin:0}.prep-parent-children li button{background:#b91c1c}.prep-parent-children__notice{padding:10px;background:#f1f5f9}.prep-parent-children__notice--error{background:#fef2f2;color:#991b1b}.prep-parent-children__notice--success{background:#f0fdf4;color:#166534}.prep-parent-children__report{margin-top:14px;border:1px solid #e5e7eb;border-radius:8px;padding:12px}.prep-parent-children__report summary{cursor:pointer;font-weight:700}.prep-parent-children__report summary span{float:right;color:#64748b;font-weight:400}.prep-parent-children__table-wrap{overflow:auto;margin-top:12px}.prep-parent-children table{width:100%;border-collapse:collapse;min-width:650px}.prep-parent-children th,.prep-parent-children td{text-align:left;padding:10px;border-top:1px solid #e5e7eb;font-size:13px}.prep-parent-children th{font-size:11px;text-transform:uppercase;color:#64748b}.prep-parent-children__bar{display:inline-block;width:110px;height:7px;margin-right:6px;background:#e5e7eb;border-radius:99px;overflow:hidden;vertical-align:middle}.prep-parent-children__bar span{display:block;height:100%;background:#4f46e5}.prep-parent-children__status{padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700}.prep-parent-children__status--passed{background:#dcfce7;color:#166534}.prep-parent-children__status--progress{background:#fef3c7;color:#92400e}.prep-parent-children__status--not-started{background:#f1f5f9;color:#475569}</style>

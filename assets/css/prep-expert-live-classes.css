@@ -86,6 +86,30 @@
 	font-weight: 600;
 }
 
+.prep-parent-past-papers {
+	background: #fff;
+	border: 1px solid #e5e7eb;
+	border-radius: 12px;
+	box-shadow: 0 4px 16px rgba(15, 23, 42, .07);
+	overflow: hidden;
+}
+
+.prep-child-progress {
+	margin: 16px 10px 0;
+	padding: 16px;
+	background: #f8fafc;
+	border: 1px solid #e2e8f0;
+	border-radius: 10px;
+}
+
+.prep-child-progress h3 { margin: 0 0 12px; color: #172033; font-size: 1rem; }
+.prep-child-progress p { margin: 0; color: #64748b; }
+.prep-child-progress__list { display: grid; gap: 12px; }
+.prep-child-progress__top { display: flex; justify-content: space-between; gap: 12px; color: #475569; font-size: .9rem; }
+.prep-child-progress__top strong { color: #172033; }
+.prep-child-progress__track { height: 8px; margin-top: 6px; overflow: hidden; background: #e2e8f0; border-radius: 99px; }
+.prep-child-progress__track span { display: block; height: 100%; background: #4f46e5; border-radius: inherit; }
+
 @media (max-width: 600px) {
 	.prep-expert-live-classes-list {
 		gap: 16px;

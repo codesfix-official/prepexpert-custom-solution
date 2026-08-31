@@ -441,6 +441,7 @@ final class Prep_Expert_Live_Class_Parent_Extension {
 		$paper_ids = self::past_papers_from_user_orders( $child_id, $parent_id );
 		$out = '<section class="prep-parent-past-papers" style="margin-top:24px;">';
 		$out .= '<div style="background:#f8fafc;border-bottom:2px solid #e2e8f0;padding:12px 10px;"><h2 style="margin:0;color:#1e293b;">' . esc_html__( 'Past Papers', 'prep-expert-exam-papers' ) . '</h2><p style="margin:4px 0 0;color:#64748b;">' . esc_html( $child->display_name ) . '</p></div>';
+		$out .= self::render_child_course_progress( $child_id );
 
 		if ( empty( $paper_ids ) ) {
 			return $out . '<p style="padding:10px;">' . esc_html__( 'No past papers have been purchased for this child.', 'prep-expert-exam-papers' ) . '</p></section>';
@@ -459,6 +460,44 @@ final class Prep_Expert_Live_Class_Parent_Extension {
 			$out  .= '<tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:10px;"><strong>' . esc_html( $title ) . '</strong></td><td style="padding:10px;"><a href="' . esc_url( $url ) . '" style="background:#4f46e5;color:#fff;padding:6px 12px;border-radius:4px;text-decoration:none;font-weight:600;display:inline-block;">' . esc_html__( 'View Past Paper', 'prep-expert-exam-papers' ) . '</a></td></tr>';
 		}
 		return $out . '</tbody></table></div></section>';
+	}
+
+	/**
+	 * Render MasterStudy course progress for the selected child.
+	 *
+	 * @param int $child_id Child user ID.
+	 * @return string
+	 */
+	private static function render_child_course_progress( $child_id ) {
+		global $wpdb;
+
+		$child_id = absint( $child_id );
+		if ( ! $child_id ) {
+			return '';
+		}
+
+		$table = function_exists( 'stm_lms_user_courses_name' ) ? stm_lms_user_courses_name( $wpdb ) : $wpdb->prefix . 'stm_lms_user_courses';
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
+			return '<div class="prep-child-progress"><h3>' . esc_html__( 'Child Course Progress', 'prep-expert-exam-papers' ) . '</h3><p>' . esc_html__( 'No course activity is available for this child.', 'prep-expert-exam-papers' ) . '</p></div>';
+		}
+
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT course_id, progress_percent FROM {$table} WHERE user_id = %d", $child_id ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$out  = '<div class="prep-child-progress"><h3>' . esc_html__( 'Child Course Progress', 'prep-expert-exam-papers' ) . '</h3>';
+		if ( empty( $rows ) ) {
+			return $out . '<p>' . esc_html__( 'No course activity is available for this child.', 'prep-expert-exam-papers' ) . '</p></div>';
+		}
+
+		$out .= '<div class="prep-child-progress__list">';
+		foreach ( $rows as $row ) {
+			$course_id = absint( $row['course_id'] ?? 0 );
+			$progress  = min( 100, max( 0, (int) round( is_numeric( $row['progress_percent'] ?? null ) ? (float) $row['progress_percent'] : 0 ) ) );
+			$title     = get_the_title( $course_id );
+			if ( ! $title ) {
+				$title = __( 'Course', 'prep-expert-exam-papers' );
+			}
+			$out .= '<div class="prep-child-progress__item"><div class="prep-child-progress__top"><strong>' . esc_html( $title ) . '</strong><span>' . esc_html( $progress . '%' ) . '</span></div><div class="prep-child-progress__track"><span style="width:' . esc_attr( $progress ) . '%"></span></div></div>';
+		}
+		return $out . '</div></div>';
 	}
 
 	/**
