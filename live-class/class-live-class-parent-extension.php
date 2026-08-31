@@ -190,6 +190,13 @@ final class Prep_Expert_Live_Class_Parent_Extension {
 		$current_user_id = get_current_user_id();
 		$target_user_id  = $current_user_id;
 		$children        = class_exists( 'Prep_Expert_Parent_Child_Database' ) ? Prep_Expert_Parent_Child_Database::active_children( $current_user_id ) : array();
+		$past_papers_parent_id = $current_user_id;
+		if ( empty( $children ) && class_exists( 'Prep_Expert_Parent_Child_Database' ) ) {
+			$resolved_parent_id = Prep_Expert_Parent_Child_Database::get_parent_by_child( $current_user_id );
+			if ( $resolved_parent_id ) {
+				$past_papers_parent_id = $resolved_parent_id;
+			}
+		}
 
 		ob_start();
 
@@ -337,7 +344,7 @@ final class Prep_Expert_Live_Class_Parent_Extension {
 		echo '</div>';
 
 		// Past papers are rendered for the parent or the selected child.
-		echo self::render_child_past_papers( $target_user_id, $current_user_id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		echo self::render_child_past_papers( $target_user_id, $past_papers_parent_id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 		if ( ! empty( $children ) && $target_user_id !== $current_user_id ) {
 			echo self::render_child_past_papers( $current_user_id, $current_user_id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 		}
