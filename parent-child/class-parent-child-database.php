@@ -57,6 +57,24 @@ final class Prep_Expert_Parent_Child_Database {
 	}
 
 	/**
+	 * Return parent user IDs with at least one active relationship.
+	 *
+	 * @return int[]
+	 */
+	public static function active_parent_ids() {
+		global $wpdb;
+
+		$ids = $wpdb->get_col(
+			$wpdb->prepare(
+				'SELECT DISTINCT parent_user_id FROM %i WHERE removed_at IS NULL',
+				self::table_name()
+			)
+		);
+
+		return array_values( array_filter( array_map( 'absint', is_array( $ids ) ? $ids : array() ) ) );
+	}
+
+	/**
 	 * Verify if a parent user is authorized to access a specific child's data.
 	 *
 	 * @param int $parent_id Parent User ID.

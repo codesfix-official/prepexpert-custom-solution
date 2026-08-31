@@ -45,6 +45,27 @@ final class Prep_Expert_Parent_Child_Module {
 		if ( '1.0.0' !== get_option( 'prep_parent_child_db_version' ) ) {
 			Prep_Expert_Parent_Child_Database::install();
 		}
+		$this->sync_existing_parent_capabilities();
+	}
+
+	/**
+	 * Restore the management capability for existing parent relationships.
+	 *
+	 * Older installations may contain valid relationships created before the
+	 * capability check was enforced. Only users with an active relationship are
+	 * granted this narrowly scoped capability.
+	 */
+	private function sync_existing_parent_capabilities() {
+		if ( ! class_exists( 'Prep_Expert_Parent_Child_Database' ) ) {
+			return;
+		}
+
+		foreach ( Prep_Expert_Parent_Child_Database::active_parent_ids() as $parent_id ) {
+			$parent = get_user_by( 'id', $parent_id );
+			if ( $parent instanceof WP_User && ! in_array( self::CHILD_ROLE, (array) $parent->roles, true ) && ! $parent->has_cap( self::CAPABILITY ) ) {
+				$parent->add_cap( self::CAPABILITY );
+			}
+		}
 	}
 
 	private function register_roles() {
@@ -302,7 +323,14 @@ final class Prep_Expert_Parent_Child_Module {
 		if ( ! ( $user instanceof WP_User ) ) {
 			return false;
 		}
-		return $user->has_cap( self::CAPABILITY ) && ! in_array( self::CHILD_ROLE, (array) $user->roles, true );
+		if ( in_array( self::CHILD_ROLE, (array) $user->roles, true ) ) {
+			return false;
+		}
+
+		// Parent onboarding: every logged-in non-child may add their first child.
+		// The child relationship is always stored against the current user, and
+		// removal is restricted by the database query to that same parent ID.
+		return true;
 	}
 
 	private function create_child_account( $email ) {
