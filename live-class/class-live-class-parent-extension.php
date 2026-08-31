@@ -441,10 +441,9 @@ final class Prep_Expert_Live_Class_Parent_Extension {
 		$paper_ids = self::past_papers_from_user_orders( $child_id, $parent_id );
 		$out = '<section class="prep-parent-past-papers" style="margin-top:24px;">';
 		$out .= '<div style="background:#f8fafc;border-bottom:2px solid #e2e8f0;padding:12px 10px;"><h2 style="margin:0;color:#1e293b;">' . esc_html__( 'Past Papers', 'prep-expert-exam-papers' ) . '</h2><p style="margin:4px 0 0;color:#64748b;">' . esc_html( $child->display_name ) . '</p></div>';
-		$out .= self::render_child_course_progress( $child_id );
 
 		if ( empty( $paper_ids ) ) {
-			return $out . '<p style="padding:10px;">' . esc_html__( 'No past papers have been purchased for this child.', 'prep-expert-exam-papers' ) . '</p></section>';
+			return $out . '<p style="padding:10px;">' . esc_html__( 'No past papers have been purchased for this child.', 'prep-expert-exam-papers' ) . '</p></section>' . self::render_child_course_progress( $child_id );
 		}
 
 		$out .= '<div style="overflow-x:auto;"><table class="prep-past-paper-table widefat striped" style="width:100%;border-collapse:collapse;text-align:left;min-width:450px;"><thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;"><th style="padding:10px;">' . esc_html__( 'Past Paper', 'prep-expert-exam-papers' ) . '</th><th style="padding:10px;">' . esc_html__( 'Access', 'prep-expert-exam-papers' ) . '</th></tr></thead><tbody>';
@@ -459,7 +458,7 @@ final class Prep_Expert_Live_Class_Parent_Extension {
 			$title = get_the_title( $paper_id );
 			$out  .= '<tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:10px;"><strong>' . esc_html( $title ) . '</strong></td><td style="padding:10px;"><a href="' . esc_url( $url ) . '" style="background:#4f46e5;color:#fff;padding:6px 12px;border-radius:4px;text-decoration:none;font-weight:600;display:inline-block;">' . esc_html__( 'View Past Paper', 'prep-expert-exam-papers' ) . '</a></td></tr>';
 		}
-		return $out . '</tbody></table></div></section>';
+		return $out . '</tbody></table></div></section>' . self::render_child_course_progress( $child_id );
 	}
 
 	/**
