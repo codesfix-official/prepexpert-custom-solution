@@ -336,9 +336,10 @@ final class Prep_Expert_Live_Class_Parent_Extension {
 		echo '</tbody></table>';
 		echo '</div>';
 
-		// Past papers are intentionally rendered as a separate dashboard section.
-		if ( ! empty( $children ) ) {
-			echo self::render_child_past_papers( $target_user_id, $current_user_id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		// Past papers are rendered for the parent or the selected child.
+		echo self::render_child_past_papers( $target_user_id, $current_user_id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		if ( ! empty( $children ) && $target_user_id !== $current_user_id ) {
+			echo self::render_child_past_papers( $current_user_id, $current_user_id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 		}
 
 		return ob_get_clean();
@@ -430,14 +431,7 @@ final class Prep_Expert_Live_Class_Parent_Extension {
 			return '';
 		}
 
-		$paper_ids = get_user_meta( $child_id, '_enrolled_past_papers', true );
-		$paper_ids = is_array( $paper_ids ) ? array_values( array_unique( array_filter( array_map( 'absint', $paper_ids ) ) ) ) : array();
-		if ( empty( $paper_ids ) ) {
-			$paper_ids = self::past_papers_from_parent_orders( $parent_id, $child_id );
-			if ( ! empty( $paper_ids ) ) {
-				update_user_meta( $child_id, '_enrolled_past_papers', $paper_ids );
-			}
-		}
+		$paper_ids = self::past_papers_from_user_orders( $child_id, $parent_id );
 		$out = '<section class="prep-parent-past-papers" style="margin-top:24px;">';
 		$out .= '<div style="background:#f8fafc;border-bottom:2px solid #e2e8f0;padding:12px 10px;"><h2 style="margin:0;color:#1e293b;">' . esc_html__( 'Past Papers', 'prep-expert-exam-papers' ) . '</h2><p style="margin:4px 0 0;color:#64748b;">' . esc_html( $child->display_name ) . '</p></div>';
 
@@ -448,6 +442,9 @@ final class Prep_Expert_Live_Class_Parent_Extension {
 		$out .= '<div style="overflow-x:auto;"><table class="prep-past-paper-table widefat striped" style="width:100%;border-collapse:collapse;text-align:left;min-width:450px;"><thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;"><th style="padding:10px;">' . esc_html__( 'Past Paper', 'prep-expert-exam-papers' ) . '</th><th style="padding:10px;">' . esc_html__( 'Access', 'prep-expert-exam-papers' ) . '</th></tr></thead><tbody>';
 		foreach ( $paper_ids as $paper_id ) {
 			if ( 'past-paper' !== get_post_type( $paper_id ) || 'publish' !== get_post_status( $paper_id ) ) {
+				continue;
+			}
+			if ( ! self::user_has_purchased_past_paper( $paper_id, $child_id, $parent_id ) ) {
 				continue;
 			}
 			$url   = get_permalink( $paper_id );
@@ -464,19 +461,60 @@ final class Prep_Expert_Live_Class_Parent_Extension {
 	 * @param int $child_id Child user ID.
 	 * @return int[]
 	 */
-	private static function past_papers_from_parent_orders( $parent_id, $child_id ) {
-		if ( ! $parent_id || ! $child_id || ! function_exists( 'wc_get_orders' ) ) {
+	private static function past_papers_from_user_orders( $user_id, $parent_id = 0 ) {
+		$user_id = absint( $user_id );
+		$parent_id = absint( $parent_id );
+		if ( ! $user_id || ! function_exists( 'wc_get_orders' ) ) {
 			return array();
 		}
-		$orders = wc_get_orders( array( 'customer_id' => absint( $parent_id ), 'status' => array( 'processing', 'completed' ), 'limit' => -1, 'return' => 'objects' ) );
+		$is_child = $parent_id && $user_id !== $parent_id;
+		$order_customer_id = $is_child ? $parent_id : $user_id;
+		$orders = wc_get_orders( array( 'customer_id' => $order_customer_id, 'status' => array( 'processing', 'completed' ), 'limit' => -1, 'return' => 'objects' ) );
 		$paper_ids = array();
 		foreach ( $orders as $order ) {
-			if ( absint( $order->get_meta( '_enrolled_child_user_id' ) ) !== absint( $child_id ) ) {
+			$assigned_child = absint( $order->get_meta( '_enrolled_child_user_id' ) );
+			if ( $is_child && $assigned_child !== $user_id ) {
+				continue;
+			}
+			if ( ! $is_child && $assigned_child ) {
 				continue;
 			}
 			$paper_ids = array_merge( $paper_ids, self::past_paper_ids_for_products( $order->get_items() ) );
 		}
 		return array_values( array_unique( array_filter( array_map( 'absint', $paper_ids ) ) ) );
+	}
+
+	/**
+	 * Confirm that the user has an eligible order containing this paper's linked product.
+	 *
+	 * @param int $paper_id Past-paper post ID.
+	 * @param int $user_id User whose access is being checked.
+	 * @param int $parent_id Parent user ID for child purchases, or zero for direct access.
+	 * @return bool
+	 */
+	private static function user_has_purchased_past_paper( $paper_id, $user_id, $parent_id = 0 ) {
+		$paper_id = absint( $paper_id );
+		$user_id = absint( $user_id );
+		$parent_id = absint( $parent_id );
+		$linked = function_exists( 'get_field' ) ? get_field( 'linked_product', $paper_id ) : get_post_meta( $paper_id, 'linked_product', true );
+		$product_id = self::linked_product_id( $linked );
+		if ( ! $paper_id || ! $product_id || ! $user_id || ! function_exists( 'wc_get_orders' ) ) {
+			return false;
+		}
+		$is_child = $parent_id && $user_id !== $parent_id;
+		$orders = wc_get_orders( array( 'customer_id' => $is_child ? $parent_id : $user_id, 'status' => array( 'processing', 'completed' ), 'limit' => -1, 'return' => 'objects' ) );
+		foreach ( $orders as $order ) {
+			$assigned_child = absint( $order->get_meta( '_enrolled_child_user_id' ) );
+			if ( ( $is_child && $assigned_child !== $user_id ) || ( ! $is_child && $assigned_child ) ) {
+				continue;
+			}
+			foreach ( $order->get_items() as $item ) {
+				if ( absint( $item->get_product_id() ) === $product_id ) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 
