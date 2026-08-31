@@ -816,7 +816,7 @@ if (!class_exists('Prep_Expert_Exam_Papers_Plugin')) {
 				return false;
 			}
 
-			$cache_key = 'pex_exam_papers_' . $user_id . '_' . $product_id;
+			$cache_key = 'pex_exam_papers_v2_' . $user_id . '_' . $product_id;
 
 			if (array_key_exists($cache_key, $this->purchase_cache)) {
 				return (bool) $this->purchase_cache[ $cache_key ];
@@ -829,6 +829,36 @@ if (!class_exists('Prep_Expert_Exam_Papers_Plugin')) {
 			}
 
 			$has_purchased = (bool) wc_customer_bought_product($email, $user_id, $product_id);
+
+			// A parent places the order, but the selected child owns the access.
+			// Check only that child's assigned parent orders; never inherit the
+			// parent's unrelated purchases or another child's purchase.
+			if ( ! $has_purchased && class_exists( 'Prep_Expert_Parent_Child_Database' ) && function_exists( 'wc_get_orders' ) ) {
+				$parent_id = absint( Prep_Expert_Parent_Child_Database::get_parent_by_child( $user_id ) );
+				if ( $parent_id && $parent_id !== $user_id ) {
+					$parent_orders = wc_get_orders(
+						array(
+							'customer_id' => $parent_id,
+							'status'      => array( 'processing', 'completed' ),
+							'limit'       => -1,
+							'return'      => 'objects',
+						)
+					);
+
+					foreach ( $parent_orders as $parent_order ) {
+						if ( $user_id !== absint( $parent_order->get_meta( '_enrolled_child_user_id' ) ) ) {
+							continue;
+						}
+
+						foreach ( $parent_order->get_items() as $item ) {
+							if ( $product_id === absint( $item->get_product_id() ) ) {
+								$has_purchased = true;
+								break 2;
+							}
+						}
+					}
+				}
+			}
 
 			$this->purchase_cache[ $cache_key ] = $has_purchased;
 			wp_cache_set($cache_key, $has_purchased, 'pex_exam_papers', HOUR_IN_SECONDS);
