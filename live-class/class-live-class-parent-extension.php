@@ -479,11 +479,11 @@ final class Prep_Expert_Live_Class_Parent_Extension {
 
 		$table = function_exists( 'stm_lms_user_courses_name' ) ? stm_lms_user_courses_name( $wpdb ) : $wpdb->prefix . 'stm_lms_user_courses';
 		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
-			return '<div class="prep-child-progress"><h3>' . esc_html__( 'Child Course Progress', 'prep-expert-exam-papers' ) . '</h3><p>' . esc_html__( 'No course activity is available for this child.', 'prep-expert-exam-papers' ) . '</p></div>';
+			return '<div class="prep-child-progress"><h2>' . esc_html__( 'Child Course Progress', 'prep-expert-exam-papers' ) . '</h2><p>' . esc_html__( 'No course activity is available for this child.', 'prep-expert-exam-papers' ) . '</p></div>';
 		}
 
 		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT course_id, progress_percent FROM {$table} WHERE user_id = %d", $child_id ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$out  = '<div class="prep-child-progress"><h3>' . esc_html__( 'Child Course Progress', 'prep-expert-exam-papers' ) . '</h3>';
+		$out  = '<div class="prep-child-progress"><h2>' . esc_html__( 'Child Course Progress', 'prep-expert-exam-papers' ) . '</h2>';
 		if ( empty( $rows ) ) {
 			return $out . '<p>' . esc_html__( 'No course activity is available for this child.', 'prep-expert-exam-papers' ) . '</p></div>';
 		}
