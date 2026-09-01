@@ -111,7 +111,7 @@ final class Prep_Expert_Quiz_Parent_Extension {
 
 		$quiz_ids = get_user_meta( $target_user_id, self::ENROLLED_META, true );
 		$quiz_ids = is_array( $quiz_ids ) ? array_values( array_filter( array_map( 'absint', $quiz_ids ) ) ) : array();
-		$out = '<section class="prep-parent-quizzes" style="margin-top:24px;"><h3>' . esc_html__( 'Mock Exams', 'prep-expert-exam-papers' ) . '</h3>';
+		$out = '<section class="prep-parent-quizzes" style="margin-top:24px;"><h2>' . esc_html__( 'Mock Exams', 'prep-expert-exam-papers' ) . '</h2>';
 		if ( empty( $quiz_ids ) ) {
 			return $out . '<p>' . esc_html__( 'No mock exams enrolled for this student.', 'prep-expert-exam-papers' ) . '</p></section>';
 		}
