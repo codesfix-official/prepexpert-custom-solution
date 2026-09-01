@@ -22,3 +22,4 @@ Prep_Expert_Exam_Papers_Plugin::instance();
 
 require_once __DIR__ . '/parent-child/parent-child.php';
 require_once __DIR__ . '/live-class/live-class.php';
+require_once __DIR__ . '/quiz/class-quiz-parent-extension.php';

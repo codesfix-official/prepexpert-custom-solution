@@ -349,6 +349,9 @@ final class Prep_Expert_Live_Class_Parent_Extension {
 
 		// Past papers are rendered for the parent or the selected child.
 		echo self::render_child_past_papers( $target_user_id, $past_papers_parent_id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		if ( class_exists( 'Prep_Expert_Quiz_Parent_Extension' ) ) {
+			echo Prep_Expert_Quiz_Parent_Extension::render_dashboard( $target_user_id, $current_user_id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		}
 		echo '</div>';
 
 		return ob_get_clean();
