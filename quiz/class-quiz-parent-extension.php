@@ -17,6 +17,40 @@ final class Prep_Expert_Quiz_Parent_Extension {
 		add_action( 'woocommerce_order_status_processing', array( __CLASS__, 'enrol_child_quizzes' ), 30 );
 		add_action( 'woocommerce_order_status_completed', array( __CLASS__, 'enrol_child_quizzes' ), 30 );
 		add_filter( 'woocommerce_customer_bought_product', array( __CLASS__, 'allow_child_quiz_product_access' ), 20, 4 );
+		add_filter( 'the_content', array( __CLASS__, 'render_quiz_root_route' ), 30 );
+	}
+
+	/**
+	 * Render a quiz opened from a child dashboard Start Exam link.
+	 *
+	 * The dashboard link uses the site root so it also works outside the LMS
+	 * account template. Without this filter that request has no shortcode.
+	 *
+	 * @param string $content Current page content.
+	 * @return string
+	 */
+	public static function render_quiz_root_route( $content ) {
+		if ( is_admin() || ! is_user_logged_in() || ! isset( $_GET['quiz_id'] ) || ! shortcode_exists( 'ays_quiz' ) ) {
+			return $content;
+		}
+
+		$quiz_id = absint( wp_unslash( $_GET['quiz_id'] ) );
+		if ( ! $quiz_id || ! self::user_has_quiz_access( get_current_user_id(), $quiz_id ) ) {
+			return $content;
+		}
+
+		$player = do_shortcode( '[ays_quiz id="' . $quiz_id . '"]' );
+		if ( '' === trim( $player ) ) {
+			return $content;
+		}
+
+		return $content . '<div class="prep-parent-quiz-player">' . $player . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	}
+
+	/** Check only the current child’s assignment; never use the parent’s quiz meta. */
+	private static function user_has_quiz_access( $user_id, $quiz_id ) {
+		$assigned = get_user_meta( absint( $user_id ), self::ENROLLED_META, true );
+		return is_array( $assigned ) && in_array( absint( $quiz_id ), array_map( 'absint', $assigned ), true );
 	}
 
 	/** Allow AYS/WooCommerce access checks to recognize a quiz assigned to a child. */
@@ -33,8 +67,7 @@ final class Prep_Expert_Quiz_Parent_Extension {
 		}
 
 		foreach ( self::quiz_ids_for_product( $product_id ) as $quiz_id ) {
-			$assigned = get_user_meta( $user_id, self::ENROLLED_META, true );
-			if ( is_array( $assigned ) && in_array( $quiz_id, array_map( 'absint', $assigned ), true ) ) {
+			if ( self::user_has_quiz_access( $user_id, $quiz_id ) ) {
 				return true;
 			}
 		}
