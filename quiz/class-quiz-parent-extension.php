@@ -16,6 +16,7 @@ final class Prep_Expert_Quiz_Parent_Extension {
 	public static function init() {
 		add_action( 'woocommerce_order_status_processing', array( __CLASS__, 'enrol_child_quizzes' ), 30 );
 		add_action( 'woocommerce_order_status_completed', array( __CLASS__, 'enrol_child_quizzes' ), 30 );
+		add_action( 'woocommerce_payment_complete', array( __CLASS__, 'enrol_child_quizzes' ), 30 );
 		add_filter( 'woocommerce_customer_bought_product', array( __CLASS__, 'allow_child_quiz_product_access' ), 20, 4 );
 		add_filter( 'the_content', array( __CLASS__, 'render_quiz_root_route' ), 30 );
 	}
@@ -35,7 +36,11 @@ final class Prep_Expert_Quiz_Parent_Extension {
 		}
 
 		$quiz_id = absint( wp_unslash( $_GET['quiz_id'] ) );
-		if ( ! $quiz_id || ! self::user_has_quiz_access( get_current_user_id(), $quiz_id ) ) {
+		if ( ! $quiz_id ) {
+			return $content;
+		}
+		self::sync_child_quizzes_from_orders( get_current_user_id() );
+		if ( ! self::user_has_quiz_access( get_current_user_id(), $quiz_id ) ) {
 			return $content;
 		}
 
@@ -51,6 +56,25 @@ final class Prep_Expert_Quiz_Parent_Extension {
 	private static function user_has_quiz_access( $user_id, $quiz_id ) {
 		$assigned = get_user_meta( absint( $user_id ), self::ENROLLED_META, true );
 		return is_array( $assigned ) && in_array( absint( $quiz_id ), array_map( 'absint', $assigned ), true );
+	}
+
+	/** Recover assignments for older paid orders when a child opens the dashboard. */
+	private static function sync_child_quizzes_from_orders( $child_id ) {
+		if ( ! function_exists( 'wc_get_orders' ) || ! class_exists( 'Prep_Expert_Parent_Child_Database' ) ) {
+			return;
+		}
+		$child_id  = absint( $child_id );
+		$parent_id = Prep_Expert_Parent_Child_Database::get_parent_by_child( $child_id );
+		if ( ! $child_id || ! $parent_id ) {
+			return;
+		}
+
+		$orders = wc_get_orders( array( 'customer_id' => $parent_id, 'status' => array( 'processing', 'completed' ), 'limit' => 100, 'return' => 'objects' ) );
+		foreach ( (array) $orders as $order ) {
+			if ( absint( $order->get_meta( '_enrolled_child_user_id' ) ) === $child_id ) {
+				self::enrol_child_quizzes( $order->get_id() );
+			}
+		}
 	}
 
 	/** Allow AYS/WooCommerce access checks to recognize a quiz assigned to a child. */
@@ -102,6 +126,9 @@ final class Prep_Expert_Quiz_Parent_Extension {
 		global $wpdb;
 
 		$table = $wpdb->prefix . 'aysquiz_quizes';
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
+			return array();
+		}
 		$rows  = $wpdb->get_results( "SELECT id, options FROM {$table}" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 		$ids   = array();
 		foreach ( (array) $rows as $row ) {
@@ -141,6 +168,7 @@ final class Prep_Expert_Quiz_Parent_Extension {
 		if ( $target_user_id !== $viewer_user_id && ( ! class_exists( 'Prep_Expert_Parent_Child_Database' ) || ! Prep_Expert_Parent_Child_Database::can_parent_access_child( $viewer_user_id, $target_user_id ) ) ) {
 			return '';
 		}
+		self::sync_child_quizzes_from_orders( $target_user_id );
 
 		$quiz_ids = get_user_meta( $target_user_id, self::ENROLLED_META, true );
 		$quiz_ids = is_array( $quiz_ids ) ? array_values( array_filter( array_map( 'absint', $quiz_ids ) ) ) : array();
