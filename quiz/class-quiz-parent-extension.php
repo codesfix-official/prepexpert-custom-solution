@@ -125,8 +125,7 @@ final class Prep_Expert_Quiz_Parent_Extension {
 		}
 		global $wpdb;
 
-		//$table = $wpdb->prefix . 'aysquiz_quizes';
-		$table = 'wpstg0_aysquiz_quizes';
+		$table = $wpdb->prefix . 'aysquiz_quizes';
 		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
 			return array();
 		}
@@ -144,8 +143,8 @@ final class Prep_Expert_Quiz_Parent_Extension {
 
 	private static function quiz_ids_for_product( $product_id ) {
 		global $wpdb;
-		//$table = $wpdb->prefix . 'aysquiz_quizes';
-		$table = 'wpstg0_aysquiz_quizes';
+
+		$table = $wpdb->prefix . 'aysquiz_quizes';
 		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
 			return array();
 		}
@@ -181,8 +180,8 @@ final class Prep_Expert_Quiz_Parent_Extension {
 
 		global $wpdb;
 		
-		//$table = $wpdb->prefix . 'aysquiz_quizes';
-		$table = 'wpstg0_aysquiz_quizes';
+		$table = $wpdb->prefix . 'aysquiz_quizes';
+		
 		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
 			return $out . '<p>' . esc_html__( 'Quiz service is currently unavailable.', 'prep-expert-exam-papers' ) . '</p></section>';
 		}
