@@ -13,7 +13,7 @@ final class Prep_Expert_Quiz_Parent_Extension {
 
 	const ENROLLED_META = '_enrolled_quiz_ids';
 	const QUIZ_PAGE_OPTION = 'prep_expert_child_quiz_page_id';
-	const QUIZ_PAGE_SLUG = 'child-quiz';
+	const QUIZ_PAGE_SLUG = 'quiz';
 
 	public static function init() {
 		add_action(
@@ -313,7 +313,7 @@ private static function sync_child_quizzes_from_orders( $child_id ) {
 			$user_id = get_current_user_id();
 
 			/*
-			* Our custom child-quiz route uses ?quiz_id=123.
+			* Our custom quiz route uses ?quiz_id=123.
 			* This lets us identify exactly which quiz is being rendered.
 			*/
 			$quiz_id = isset( $_GET['quiz_id'] )
