@@ -20,6 +20,7 @@ final class Prep_Expert_Quiz_Parent_Extension {
 		add_action( 'woocommerce_order_status_completed', array( __CLASS__, 'enrol_child_quizzes' ), 30 );
 		add_action( 'woocommerce_payment_complete', array( __CLASS__, 'enrol_child_quizzes' ), 30 );
 		add_filter( 'woocommerce_customer_bought_product', array( __CLASS__, 'allow_child_quiz_product_access' ), 20, 4 );
+		add_filter( 'ays_qm_woocommerce_front_end_integrations', array( __CLASS__, 'allow_assigned_child_quiz' ), 9999, 1 );
 		add_action( 'init', array( __CLASS__, 'ensure_quiz_page' ), 5 );
 		add_filter( 'the_content', array( __CLASS__, 'render_quiz_root_route' ), 30 );
 	}
@@ -124,6 +125,65 @@ final class Prep_Expert_Quiz_Parent_Extension {
 			}
 		}
 		return $bought;
+	}
+
+	/**
+	 * Let Quiz Maker render an assigned child quiz after its WooCommerce gate.
+	 *
+	 * Quiz Maker's WooCommerce addon returns HTML from this filter when access
+	 * is denied. Returning an empty result is intentionally limited to a child
+	 * assignment backed by that child's parent's qualifying order.
+	 *
+	 * @param mixed $integration Quiz Maker WooCommerce integration result.
+	 * @return mixed
+	 */
+	public static function allow_assigned_child_quiz( $integration ) {
+		if ( empty( $integration ) || ! is_user_logged_in() || ! function_exists( 'wc_get_orders' ) || ! class_exists( 'Prep_Expert_Parent_Child_Database' ) ) {
+			return $integration;
+		}
+
+		$child_id = get_current_user_id();
+		$quiz_id  = isset( $integration['id'] ) ? absint( $integration['id'] ) : 0;
+		if ( ! $child_id || ! $quiz_id || ! self::user_has_quiz_access( $child_id, $quiz_id ) ) {
+			return $integration;
+		}
+
+		$parent_id = Prep_Expert_Parent_Child_Database::get_parent_by_child( $child_id );
+		if ( ! $parent_id ) {
+			return $integration;
+		}
+
+		$product_id = self::linked_product_for_quiz( $quiz_id );
+		if ( ! $product_id ) {
+			return $integration;
+		}
+
+		$orders = wc_get_orders( array( 'customer_id' => $parent_id, 'status' => array( 'processing', 'completed' ), 'limit' => 100, 'return' => 'objects' ) );
+		foreach ( (array) $orders as $order ) {
+			if ( absint( $order->get_meta( '_enrolled_child_user_id' ) ) !== $child_id ) {
+				continue;
+			}
+			foreach ( $order->get_items() as $item ) {
+				if ( absint( $item->get_product_id() ) === $product_id ) {
+					return array();
+				}
+			}
+		}
+
+		return $integration;
+	}
+
+	/** Get the WooCommerce product linked to one Quiz Maker quiz. */
+	private static function linked_product_for_quiz( $quiz_id ) {
+		global $wpdb;
+		$table = $wpdb->prefix . 'aysquiz_quizes';
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
+			return 0;
+		}
+
+		$options = $wpdb->get_var( $wpdb->prepare( "SELECT options FROM {$table} WHERE id = %d", absint( $quiz_id ) ) );
+		$options = json_decode( (string) $options, true );
+		return is_array( $options ) ? absint( $options['woocommerce_product'] ?? 0 ) : 0;
 	}
 
 	/** Assign AYS quizzes linked to products in a paid order to its selected child. */
