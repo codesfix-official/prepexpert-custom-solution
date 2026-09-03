@@ -12,26 +12,54 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Prep_Expert_Quiz_Parent_Extension {
 
 	const ENROLLED_META = '_enrolled_quiz_ids';
+	const QUIZ_PAGE_OPTION = 'prep_expert_child_quiz_page_id';
+	const QUIZ_PAGE_SLUG = 'child-quiz';
 
 	public static function init() {
 		add_action( 'woocommerce_order_status_processing', array( __CLASS__, 'enrol_child_quizzes' ), 30 );
 		add_action( 'woocommerce_order_status_completed', array( __CLASS__, 'enrol_child_quizzes' ), 30 );
 		add_action( 'woocommerce_payment_complete', array( __CLASS__, 'enrol_child_quizzes' ), 30 );
 		add_filter( 'woocommerce_customer_bought_product', array( __CLASS__, 'allow_child_quiz_product_access' ), 20, 4 );
+		add_action( 'init', array( __CLASS__, 'ensure_quiz_page' ), 5 );
 		add_filter( 'the_content', array( __CLASS__, 'render_quiz_root_route' ), 30 );
+	}
+
+	/** Ensure one stable WordPress page provides normal Quiz Maker page context. */
+	public static function ensure_quiz_page() {
+		$page_id = absint( get_option( self::QUIZ_PAGE_OPTION ) );
+		if ( $page_id && 'publish' === get_post_status( $page_id ) ) {
+			return;
+		}
+
+		$page = get_page_by_path( self::QUIZ_PAGE_SLUG, OBJECT, 'page' );
+		if ( $page instanceof WP_Post ) {
+			update_option( self::QUIZ_PAGE_OPTION, $page->ID, false );
+			return;
+		}
+
+		$page_id = wp_insert_post(
+			array(
+				'post_title'   => __( 'Child Quiz', 'prep-expert-exam-papers' ),
+				'post_name'    => self::QUIZ_PAGE_SLUG,
+				'post_content' => '',
+				'post_status'  => 'publish',
+				'post_type'    => 'page',
+			),
+			true
+		);
+		if ( ! is_wp_error( $page_id ) ) {
+			update_option( self::QUIZ_PAGE_OPTION, absint( $page_id ), false );
+		}
 	}
 
 	/**
 	 * Render a quiz opened from a child dashboard Start Exam link.
 	 *
-	 * The dashboard link uses the site root so it also works outside the LMS
-	 * account template. Without this filter that request has no shortcode.
-	 *
 	 * @param string $content Current page content.
 	 * @return string
 	 */
 	public static function render_quiz_root_route( $content ) {
-		if ( is_admin() || ! is_user_logged_in() || ! isset( $_GET['quiz_id'] ) || ! shortcode_exists( 'ays_quiz' ) ) {
+		if ( is_admin() || ! is_page( self::QUIZ_PAGE_SLUG ) || ! is_user_logged_in() || ! isset( $_GET['quiz_id'] ) || ! shortcode_exists( 'ays_quiz' ) ) {
 			return $content;
 		}
 
@@ -197,7 +225,9 @@ final class Prep_Expert_Quiz_Parent_Extension {
 		foreach ( (array) $quizzes as $quiz ) {
 			$report = self::latest_report( absint( $quiz->id ), $target_user_id );
 			$result = $report ? esc_html( self::report_summary( $report ) ) : esc_html__( 'Not attempted', 'prep-expert-exam-papers' );
-			$link   = add_query_arg( 'quiz_id', absint( $quiz->id ), home_url( '/' ) );
+			$quiz_page_id = absint( get_option( self::QUIZ_PAGE_OPTION ) );
+			$quiz_page_url = $quiz_page_id ? get_permalink( $quiz_page_id ) : home_url( '/' . self::QUIZ_PAGE_SLUG . '/' );
+			$link   = add_query_arg( 'quiz_id', absint( $quiz->id ), $quiz_page_url );
 			$out .= '<tr><td style="padding:10px;"><strong>' . esc_html( $quiz->title ) . '</strong></td><td style="padding:10px;">' . $result . '</td><td style="padding:10px;"><a class="mqt-btn" href="' . esc_url( $link ) . '">' . esc_html__( 'Start Exam', 'prep-expert-exam-papers' ) . '</a></td></tr>';
 		}
 		return $out . '</tbody></table></div></section>';
