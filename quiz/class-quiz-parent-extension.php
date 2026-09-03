@@ -89,15 +89,30 @@ final class Prep_Expert_Quiz_Parent_Extension {
 
 	/** Recover assignments for older paid orders when a child opens the dashboard. */
 	private static function sync_child_quizzes_from_orders( $child_id ) {
-		if ( ! function_exists( 'wc_get_orders' ) || ! class_exists( 'Prep_Expert_Parent_Child_Database' ) ) {
+		if ( ! function_exists( 'wc_get_orders' ) ) {
 			return;
 		}
-		$child_id  = absint( $child_id );
-		$parent_id = Prep_Expert_Parent_Child_Database::get_parent_by_child( $child_id );
-		if ( ! $child_id || ! $parent_id ) {
+		$child_id = absint( $child_id );
+		if ( ! $child_id ) {
 			return;
 		}
 
+		// Recover direct purchases made by the student.
+		$orders = wc_get_orders( array( 'customer_id' => $child_id, 'status' => array( 'processing', 'completed' ), 'limit' => 100, 'return' => 'objects' ) );
+		foreach ( (array) $orders as $order ) {
+			if ( ! absint( $order->get_meta( '_enrolled_child_user_id' ) ) ) {
+				self::enrol_child_quizzes( $order->get_id() );
+			}
+		}
+
+		// Recover parent purchases assigned to this student.
+		if ( ! class_exists( 'Prep_Expert_Parent_Child_Database' ) ) {
+			return;
+		}
+		$parent_id = Prep_Expert_Parent_Child_Database::get_parent_by_child( $child_id );
+		if ( ! $parent_id ) {
+			return;
+		}
 		$orders = wc_get_orders( array( 'customer_id' => $parent_id, 'status' => array( 'processing', 'completed' ), 'limit' => 100, 'return' => 'objects' ) );
 		foreach ( (array) $orders as $order ) {
 			if ( absint( $order->get_meta( '_enrolled_child_user_id' ) ) === $child_id ) {
@@ -188,22 +203,33 @@ final class Prep_Expert_Quiz_Parent_Extension {
 
 	/** Assign AYS quizzes linked to products in a paid order to its selected child. */
 	public static function enrol_child_quizzes( $order_id ) {
-		if ( ! function_exists( 'wc_get_order' ) || ! class_exists( 'Prep_Expert_Parent_Child_Database' ) ) {
+		if ( ! function_exists( 'wc_get_order' ) ) {
 			return;
 		}
 
 		$order      = wc_get_order( absint( $order_id ) );
-		$child_id   = $order ? absint( $order->get_meta( '_enrolled_child_user_id' ) ) : 0;
-		$parent_id  = $order ? absint( $order->get_customer_id() ) : 0;
+		$selected_child = $order ? absint( $order->get_meta( '_enrolled_child_user_id' ) ) : 0;
+		$customer_id    = $order ? absint( $order->get_customer_id() ) : 0;
 		$quiz_ids   = $order ? self::quiz_ids_for_order( $order ) : array();
 
-		if ( ! $order || ! $parent_id || ! $child_id || $child_id === $parent_id || empty( $quiz_ids ) || ! Prep_Expert_Parent_Child_Database::can_parent_access_child( $parent_id, $child_id ) ) {
+		if ( ! $order || ! $customer_id || empty( $quiz_ids ) ) {
 			return;
 		}
 
-		$assigned = get_user_meta( $child_id, self::ENROLLED_META, true );
+		if ( $selected_child ) {
+			// Parent -> child enrollment retains the existing relationship check.
+			if ( $selected_child === $customer_id || ! class_exists( 'Prep_Expert_Parent_Child_Database' ) || ! Prep_Expert_Parent_Child_Database::can_parent_access_child( $customer_id, $selected_child ) ) {
+				return;
+			}
+			$target_user_id = $selected_child;
+		} else {
+			// A direct student purchase belongs to the order customer.
+			$target_user_id = $customer_id;
+		}
+
+		$assigned = get_user_meta( $target_user_id, self::ENROLLED_META, true );
 		$assigned = is_array( $assigned ) ? array_map( 'absint', $assigned ) : array();
-		update_user_meta( $child_id, self::ENROLLED_META, array_values( array_unique( array_merge( $assigned, $quiz_ids ) ) ) );
+		update_user_meta( $target_user_id, self::ENROLLED_META, array_values( array_unique( array_merge( $assigned, $quiz_ids ) ) ) );
 	}
 
 	private static function quiz_ids_for_order( $order ) {
