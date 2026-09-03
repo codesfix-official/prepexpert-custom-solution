@@ -176,3 +176,53 @@ rg -o --glob '*.php' "apply_filters\\s*\\(\\s*['\"](masterstudy|stm_lms|stm_|MSL
 ```
 
 This deliberate regeneration command is included because this plugin’s installed source exposes a large, frequently changing legacy filter surface; source line locations are the authoritative parameter/default contract.
+
+## 8. Prepexpert parent-child quiz investigation (2026-09-02)
+
+This installation does not use MasterStudy's native quiz model for the affected feature. The affected exams are AYS Quiz Maker records in the prefixed `aysquiz_quizes` table, rendered by the `[ays_quiz id="..."]` shortcode. MasterStudy supplies the account/dashboard shell and menu hooks; it does not own the quiz purchase or attempt record.
+
+### Actual runtime path
+
+1. `prep-expert-exam-papers.php` loads the parent-child module, live-class module, and `quiz/class-quiz-parent-extension.php`.
+2. `Prep_Expert_Live_Class_Parent_Extension::add_child_dropdown_to_checkout_fields()` adds `billing_enrolled_child_user_id` only when the logged-in user has active children.
+3. `save_child_id_to_order()` / its fallback writes `_enrolled_child_user_id` only if the submitted field is present and the current user owns that child.
+4. `Prep_Expert_Quiz_Parent_Extension::enrol_child_quizzes()` reads the order customer as parent, reads `_enrolled_child_user_id`, finds AYS quizzes by decoding each quiz's `options['woocommerce_product']`, and stores quiz IDs in the selected child's `_enrolled_quiz_ids` user meta.
+5. The quiz list is emitted only when `Prep_Expert_Live_Class_Parent_Extension::render_parent_child_dashboard()` calls `render_dashboard()`; it is not a standalone account page or MasterStudy quiz route.
+6. The Start Exam link points to `home_url('/') . '?quiz_id=N'`. The quiz extension appends `[ays_quiz id="N"]` through `the_content`, but only when the current user's `_enrolled_quiz_ids` contains that ID.
+
+### Why the issue persists
+
+| Finding | Why it breaks the requirement | Evidence / required check |
+|---|---|---|
+| The feature relies on `_enrolled_child_user_id` being present on every order | If the checkout field is absent, renamed by the checkout implementation, or the order was created before the fallback ran, the quiz callback safely returns and no child receives the quiz | For both order IDs inspect `_enrolled_child_user_id`, `_customer_user`, status, and line-item product IDs in `wp_postmeta` / WooCommerce order storage |
+| Enrollment is asynchronous and historically only status-driven | A paid order can have a different gateway transition path; a callback added later cannot repair an order unless that order is explicitly replayed | Compare order status/timestamps with callback logs; manually invoke the enrollment routine against each affected order during diagnosis |
+| Quiz-to-product discovery scans every quiz and assumes one scalar option | AYS can store JSON with missing/empty/non-scalar values, and a product association mismatch produces an empty quiz ID list even though the order is valid | Decode and log only quiz ID/product ID pairs; compare each purchased product ID with `options['woocommerce_product']` |
+| The diagnostic logger is dead code | `parent-child/parent-child.php::prep_expert_parent_child_write_log()` returns immediately before creating/writing the log file, so earlier debugging could not identify which stage failed | Remove the unconditional return only as an approved diagnostic/code change, then replay one order and inspect the exact stages |
+| Child dashboard selection and quiz launch are separate concerns | Parent selection uses `?child_id=`, but the quiz launch uses only `?quiz_id=`. The quiz page has no selected-child context and must authorize the logged-in child from child meta | Test parent dashboard per child, then test the same quiz URL while logged into each child; never infer child identity from the parent's browser selection |
+| AYS WooCommerce gating may still replace the quiz body | The AYS public renderer checks its WooCommerce integration settings and can replace the quiz content with its own purchase result. A custom `woocommerce_customer_bought_product` filter is not proof that the installed AYS WooCommerce integration accepts child access | Inspect the installed AYS WooCommerce addon callback and its final access check; run a child request and record rendered HTML/response, not only the URL |
+| The root route is theme/content dependent | `the_content` runs only when the root request resolves to a renderable WordPress page. If Hello Elementor uses a template path that bypasses `the_content`, the shortcode filter never runs | Browser/network test the exact root request and temporarily log whether `render_quiz_root_route()` is entered; prefer a dedicated WordPress quiz page containing a shortcode |
+
+### Correct repair sequence
+
+Do not merge parent quiz meta into child meta and do not grant all quizzes bought by the parent. The safe repair is:
+
+1. Add one reusable, idempotent order-assignment service. It must validate order existence, paid/allowed status, parent ID, child ID, active parent-owned relationship, line-item product IDs, and AYS table existence before writing.
+2. Persist `_enrolled_child_user_id` through the canonical WooCommerce checkout order object and verify it after save. Register the same assignment service on payment completion and the actual paid status hooks used by the gateway.
+3. Normalize AYS quiz options defensively and query only matching product associations. Store integer quiz IDs with `array_unique`; never overwrite another assignment.
+4. Add a one-time admin/CLI repair command for existing orders rather than relying on page-load backfills. It must report order ID, child ID, product IDs, matched quiz IDs, and a redacted failure reason.
+5. Create a dedicated published WordPress page, for example `/student-quizzes/`, with a quiz dashboard shortcode. Link Start Exam to that page with `quiz_id`; render the shortcode there and let the current logged-in child be the only identity used for authorization.
+6. Verify AYS's own WooCommerce access gate. Either use its supported access filter/API or disable the AYS purchase gate for these exams and enforce access in the custom renderer. Rendering a shortcode alone is insufficient if AYS replaces it with a purchase message.
+7. Add stage diagnostics (without email, password, payment secrets, or raw sensitive values), replay two real orders for two different children, and verify database meta plus browser output.
+
+### Minimum acceptance matrix
+
+| Scenario | Expected result |
+|---|---|
+| Parent buys quiz product for child A | Only child A gets that quiz ID in `_enrolled_quiz_ids` |
+| Parent buys the same/different quiz product for child B | Only child B gets the corresponding quiz ID; child A's list is unchanged |
+| Child A opens child B's quiz URL | No quiz is rendered and no AYS attempt can start |
+| Authorized child opens own quiz URL | The AYS quiz UI renders and can submit an attempt under that child user ID |
+| Order has no child metadata or inactive relationship | No enrollment occurs; a diagnostic reason is recorded |
+| Parent opens dashboard and switches children | Each selected child shows only that child's quiz list and reports |
+
+PHP lint and `git diff --check` validate syntax/whitespace only. They do not validate WooCommerce order metadata, AYS access callbacks, browser routing, quiz submission, database writes, or sibling isolation; those require runtime tests with two real child accounts and two real orders.
